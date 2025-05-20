@@ -11,17 +11,12 @@ A macOS menubar app that displays network information including:
 
 ## Building
 
-1. Navigate to the project directory:
-```sh
-cd /Users/james/src/NetworkInfo
-```
-
-2. Build the application bundle:
+1. Build the application bundle:
 ```sh
 ./build-app.sh
 ```
 
-3. Run the app:
+2. Run the app:
 ```sh
 open NetworkInfo.app
 ```
