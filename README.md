@@ -63,4 +63,3 @@ To make NetworkInfo start automatically when you log in:
 4. Click the "+" button
 5. Navigate to and select NetworkInfo.app
 6. Click "Add"
-# NetworkInfo
