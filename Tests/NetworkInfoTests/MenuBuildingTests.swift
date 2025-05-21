@@ -53,23 +53,23 @@ final class MenuBuildingTests: XCTestCase {
         // Check specific menu items
         let publicIPItem = menu.items.first { $0.title.contains("Public IP") }
         XCTAssertNotNil(publicIPItem)
-        XCTAssertEqual(publicIPItem?.title, "🌍 Public IP: 71.105.144.84")
+        XCTAssertEqual(publicIPItem?.title, "Public IP: 71.105.144.84")
         
         let ssidItem = menu.items.first { $0.title.contains("SSID") }
         XCTAssertNotNil(ssidItem)
-        XCTAssertEqual(ssidItem?.title, "📶 SSID: Francis")
+        XCTAssertEqual(ssidItem?.title, "SSID: Francis")
         
         let dnsConfigItem = menu.items.first { $0.title.contains("DNS Config") }
         XCTAssertNotNil(dnsConfigItem)
-        XCTAssertEqual(dnsConfigItem?.title, "  ✅ DNS Config: 127.0.0.1 192.168.1.1")
+        XCTAssertEqual(dnsConfigItem?.title, "  DNS Config: 127.0.0.1 192.168.1.1")
         
         let ispItem = menu.items.first { $0.title.contains("ISP") }
         XCTAssertNotNil(ispItem)
-        XCTAssertEqual(ispItem?.title, "📇 ISP: UUNET")
+        XCTAssertEqual(ispItem?.title, "ISP: UUNET")
         
         let locationItem = menu.items.first { $0.title.contains("Location") }
         XCTAssertNotNil(locationItem)
-        XCTAssertEqual(locationItem?.title, "📍 Location: United States (US)")
+        XCTAssertEqual(locationItem?.title, "Location: United States (US)")
     }
     
     func testBuildMenuWithMinimalData() {
@@ -98,12 +98,12 @@ final class MenuBuildingTests: XCTestCase {
         // Check refresh and quit buttons
         let refreshItem = menu.items.first { $0.title.contains("Refresh") }
         XCTAssertNotNil(refreshItem)
-        XCTAssertEqual(refreshItem?.title, "🔄 Refresh")
+        XCTAssertEqual(refreshItem?.title, "Refresh")
         XCTAssertEqual(refreshItem?.action, #selector(AppDelegate.refreshData(_:)))
         
         let quitItem = menu.items.first { $0.title.contains("Quit") }
         XCTAssertNotNil(quitItem)
-        XCTAssertEqual(quitItem?.title, "🚪 Quit")
+        XCTAssertEqual(quitItem?.title, "Quit")
         XCTAssertEqual(quitItem?.action, #selector(AppDelegate.quitApp(_:)))
     }
 }
