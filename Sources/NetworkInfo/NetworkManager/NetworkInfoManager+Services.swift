@@ -35,7 +35,7 @@ extension NetworkInfoManager {
                 if output.contains("could not find service") {
                     print("\(service): Service not found")
                     self.serviceStates[service]?.running = false
-                    self.serviceStates[service]?.pid = nil
+                    self.serviceStates[service]?.pid = nil // Using nil directly for NSNumber
                 } else {
                     // Check if running using the same regex pattern as the Lua code
                     let isRunning = output.contains("state = running")
@@ -45,7 +45,7 @@ extension NetworkInfoManager {
                     if isRunning, let pidRange = output.range(of: "pid = [0-9]+", options: .regularExpression),
                        let pidValueRange = output[pidRange].range(of: "[0-9]+", options: .regularExpression),
                        let pid = Int(output[pidValueRange]) {
-                        self.serviceStates[service]?.pid = pid
+                        self.serviceStates[service]?.pid = NSNumber(value: pid) // Using NSNumber instead of Int
                         print("\(service): Running with PID \(pid)")
                     } else {
                         self.serviceStates[service]?.pid = nil
@@ -136,7 +136,8 @@ extension NetworkInfoManager {
                 
                 // Send notification for state changes
                 if prevState != responding {
-                    let pid = self.serviceStates[service]?.pid.map { String($0) } ?? "N/A"
+                    let pidValue = self.serviceStates[service]?.pid?.intValue
+                    let pid = pidValue != nil ? String(pidValue!) : "N/A"
                     
                     let status = "\(service): Running (PID: \(pid)) - \(responding ? "Responding" : "Not Responding")"
                     

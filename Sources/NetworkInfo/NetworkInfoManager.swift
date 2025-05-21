@@ -12,7 +12,8 @@ import UserNotifications
     internal let TEST_DOMAINS = ["example.com", "google.com", "cloudflare.com"]
     
     // MARK: - File paths
-    internal let dnsConfigPath: String
+    // Change from let to var to allow setting for tests
+    internal var dnsConfigPath: String
     
     // MARK: - State variables
     internal var serviceStates: [String: ServiceState] = [
@@ -28,12 +29,16 @@ import UserNotifications
     internal var serviceTimer: Timer?
     
     // MARK: - Watchers
+    // Note: These can't be @objc due to incompatible types
     internal var configWatcher: DispatchSourceFileSystemObject?
     internal var networkMonitor: NWPathMonitor?
     
     // MARK: - Dispatch queues
     internal var networkMonitorQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.networkMonitor")
     internal var backgroundQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.background", qos: .utility, attributes: .concurrent)
+    
+    // For tests
+    internal var isTestMode = false
     
     // MARK: - Initialization
     override init() {
@@ -148,6 +153,11 @@ import UserNotifications
     // MARK: - Helper Methods
     func sendNotification(title: String, body: String) {
         print("📣 \(title): \(body)")
+        
+        // Skip UserNotifications in test mode
+        if isTestMode {
+            return
+        }
         
         let content = UNMutableNotificationContent()
         content.title = title

@@ -33,43 +33,43 @@ extension NetworkInfoManager {
     
     // Helper methods to set specific data properties for testing
     func setTestLocalIP(_ ip: String) {
-        var data = self.testData
+        let data = self.testData
         data.localIP = ip
         self.setValue(data, forKey: "data")
     }
     
     func setTestSSID(_ ssid: String) {
-        var data = self.testData
+        let data = self.testData
         data.ssid = ssid
         self.setValue(data, forKey: "data")
     }
     
     func setTestGeoIPData(_ geoIPData: GeoIPData) {
-        var data = self.testData
+        let data = self.testData
         data.geoIPData = geoIPData
         self.setValue(data, forKey: "data")
     }
     
     func setTestDNSInfo(_ dnsInfo: [String]) {
-        var data = self.testData
+        let data = self.testData
         data.dnsInfo = dnsInfo
         self.setValue(data, forKey: "data")
     }
     
     func setTestDNSTest(_ dnsTest: DNSTest) {
-        var data = self.testData
+        let data = self.testData
         data.dnsTest = dnsTest
         self.setValue(data, forKey: "data")
     }
     
     func setTestVPNConnections(_ vpnConnections: [VPNConnection]) {
-        var data = self.testData
+        let data = self.testData
         data.vpnConnections = vpnConnections
         self.setValue(data, forKey: "data")
     }
     
     func setTestDNSConfiguration(_ dnsConfiguration: DNSConfig) {
-        var data = self.testData
+        let data = self.testData
         data.dnsConfiguration = dnsConfiguration
         self.setValue(data, forKey: "data")
     }
@@ -81,5 +81,10 @@ extension NetworkInfoManager {
     
     func getTestDNSConfiguration() -> DNSConfig? {
         return self.testData.dnsConfiguration
+    }
+    
+    // Enable test mode
+    func enableTestMode() {
+        self.isTestMode = true
     }
 }

@@ -112,7 +112,8 @@ extension NetworkInfoManager {
         
         for (service, state) in serviceStates {
             let runningStatus = state.running ? "Running" : "Stopped"
-            let pidInfo = state.pid.map { " (PID: \($0))" } ?? " (PID: N/A)"
+            // Use the NSNumber value safely
+            let pidInfo = state.pid != nil ? " (PID: \(state.pid!.intValue))" : " (PID: N/A)"
             let respondingInfo = state.running ? (state.responding ? " - Responding" : " - Not Responding") : ""
             
             let serviceName = service.prefix(1).uppercased() + service.dropFirst()

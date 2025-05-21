@@ -8,6 +8,7 @@ final class MenuBuildingTests: XCTestCase {
     override func setUp() {
         super.setUp()
         manager = NetworkInfoManager()
+        manager.enableTestMode() // Enable test mode to avoid notification issues
     }
     
     override func tearDown() {

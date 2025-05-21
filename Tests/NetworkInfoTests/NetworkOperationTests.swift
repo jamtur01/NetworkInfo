@@ -8,6 +8,7 @@ final class NetworkOperationTests: XCTestCase {
     override func setUp() {
         super.setUp()
         manager = NetworkInfoManager()
+        manager.enableTestMode() // Enable test mode to avoid notification issues
     }
     
     override func tearDown() {
@@ -36,6 +37,7 @@ final class NetworkOperationTests: XCTestCase {
         }
         
         let testManager = TestableNetworkInfoManager()
+        testManager.enableTestMode() // Enable test mode for the subclass
         testManager.localIPCallback = { localIP in
             // Local IP should either be a valid IP or N/A
             XCTAssertNotNil(localIP)
@@ -111,10 +113,15 @@ final class NetworkOperationTests: XCTestCase {
         class TestableNetworkInfoManager: NetworkInfoManager {
             var mockGeoIPData: GeoIPData?
             
+            override init() {
+                super.init()
+                self.enableTestMode() // Enable test mode
+            }
+            
             override func getGeoIPData() {
                 // Instead of making a real network call, use the mock data
                 if let mockData = mockGeoIPData {
-                    var currentData = value(forKey: "data") as! NetworkData
+                    let currentData = value(forKey: "data") as! NetworkData
                     currentData.geoIPData = mockData
                     setValue(currentData, forKey: "data")
                     print("Mock GeoIP data set: \(mockData)")

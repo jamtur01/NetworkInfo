@@ -10,6 +10,7 @@ final class NetworkInfoTests: XCTestCase {
     override func setUp() {
         super.setUp()
         manager = NetworkInfoManager()
+        manager.enableTestMode() // Enable test mode to avoid notification issues
     }
     
     override func tearDown() {
@@ -93,7 +94,7 @@ final class NetworkInfoTests: XCTestCase {
         // We'll mock the behavior instead
         
         // Test with valid DNS servers
-        let mockExecute = { (command: String) -> Bool in
+        let _ = { (command: String) -> Bool in
             return command.contains("/usr/sbin/networksetup -setdnsservers Wi-Fi 1.1.1.1 8.8.8.8")
         }
         
@@ -132,7 +133,7 @@ final class NetworkInfoTests: XCTestCase {
     func testServiceStateDetection() {
         // Test service running detection logic
         let runningState = ServiceState(pid: 1234, running: true, responding: true)
-        XCTAssertEqual(runningState.pid, 1234)
+        XCTAssertEqual(runningState.pid?.intValue, 1234)
         XCTAssertTrue(runningState.running)
         XCTAssertTrue(runningState.responding)
         
