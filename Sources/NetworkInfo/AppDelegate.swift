@@ -18,7 +18,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
-            button.title = "🔗"
+            // Use custom menu bar icon
+            if let image = NSImage(named: "MenuIcons") {
+                image.isTemplate = true // For proper dark/light mode support
+                button.image = image
+            } else {
+                // Fallback to text if image not found
+                button.title = "Net"
+            }
             button.target = self
             button.action = #selector(showMenu(_:))
         }
