@@ -6,6 +6,22 @@ extension NetworkInfoManager {
         backgroundQueue.async { [weak self] in
             guard let self = self else { return }
             
+            // Skip real network calls in test mode
+            if self.isTestMode {
+                // In test mode, use existing test data or set a default
+                if self.data.geoIPData == nil {
+                    DispatchQueue.main.async {
+                        self.data.geoIPData = GeoIPData(
+                            query: "192.168.1.100",
+                            isp: "Test ISP",
+                            country: "Test Country",
+                            countryCode: "TC"
+                        )
+                    }
+                }
+                return
+            }
+            
             // Use multiple services with ipapi.co as the primary
             let apiUrls = [
                 "https://ipapi.co/json",  // Primary service (confirmed working)
@@ -100,6 +116,19 @@ extension NetworkInfoManager {
     
     func getLocalIPAddress() {
         backgroundQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Skip real network check in test mode
+            if self.isTestMode {
+                // In test mode, use a preset IP value if none exists
+                if self.data.localIP == nil || self.data.localIP == "" {
+                    DispatchQueue.main.async {
+                        self.data.localIP = "192.168.1.100" // Test default
+                    }
+                }
+                return
+            }
+            
             let task = Process()
             task.launchPath = "/bin/sh"
             task.arguments = ["-c", "ipconfig getifaddr en0"]
@@ -113,7 +142,7 @@ extension NetworkInfoManager {
             let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
             
             DispatchQueue.main.async {
-                self?.data.localIP = output.isEmpty ? "N/A" : output
+                self.data.localIP = output.isEmpty ? "N/A" : output
             }
             
             task.waitUntilExit()
@@ -123,6 +152,14 @@ extension NetworkInfoManager {
     func getCurrentSSID() {
         backgroundQueue.async { [weak self] in
             guard let self = self else { return }
+            
+            // Skip real network check in test mode
+            if self.isTestMode {
+                // In test mode, just use existing test SSID value
+                let ssid = self.data.ssid == nil || self.data.ssid?.isEmpty == true ? "Not connected" : self.data.ssid!
+                self.processSSIDForDNSConfig(ssid: ssid)
+                return
+            }
             
             // Using the exact same command from the original zsh code
             let task = Process()
@@ -140,55 +177,59 @@ extension NetworkInfoManager {
             let ssid = output.isEmpty ? "Not connected" : output
             print("Detected SSID: \(ssid)")
             
-            // Process DNS configuration in the background
-            let (dnsServers, configured) = self.readDNSConfig(ssid: ssid)
+            self.processSSIDForDNSConfig(ssid: ssid)
             
-            DispatchQueue.main.async {
-                self.data.ssid = ssid
-                
-                // Update DNS config based on SSID
-                if ssid != "Not connected" {
-                    if configured, let servers = dnsServers {
-                        self.data.dnsConfiguration = DNSConfig(ssid: ssid, servers: servers, configured: true)
-                        
-                        // Only update DNS settings if the SSID or DNS servers have changed.
-                        if self.lastAppliedDNSConfig.ssid != ssid || self.lastAppliedDNSConfig.servers != servers {
-                            // Update DNS in background
-                            self.backgroundQueue.async {
-                                if self.updateDNSSettings(dnsServers: servers) {
-                                    print("Successfully applied DNS configuration for \(ssid)")
+            task.waitUntilExit()
+        }
+    }
+    
+    private func processSSIDForDNSConfig(ssid: String) {
+        // Process DNS configuration in the background
+        let (dnsServers, configured) = self.readDNSConfig(ssid: ssid)
+        
+        DispatchQueue.main.async {
+            self.data.ssid = ssid
+            
+            // Update DNS config based on SSID
+            if ssid != "Not connected" {
+                if configured, let servers = dnsServers {
+                    self.data.dnsConfiguration = DNSConfig(ssid: ssid, servers: servers, configured: true)
+                    
+                    // Only update DNS settings if the SSID or DNS servers have changed.
+                    if self.lastAppliedDNSConfig.ssid != ssid || self.lastAppliedDNSConfig.servers != servers {
+                        // Update DNS in background
+                        self.backgroundQueue.async {
+                            if self.updateDNSSettings(dnsServers: servers) {
+                                print("Successfully applied DNS configuration for \(ssid)")
+                                
+                                DispatchQueue.main.async {
+                                    self.sendNotification(
+                                        title: "Wi-Fi DNS Changed",
+                                        body: "Connected to \(ssid) with DNS: \(servers)"
+                                    )
                                     
-                                    DispatchQueue.main.async {
-                                        self.sendNotification(
-                                            title: "Wi-Fi DNS Changed",
-                                            body: "Connected to \(ssid) with DNS: \(servers)"
-                                        )
-                                        
-                                        self.lastAppliedDNSConfig.ssid = ssid
-                                        self.lastAppliedDNSConfig.servers = servers
-                                    }
-                                } else {
-                                    print("Failed to apply DNS configuration for \(ssid)")
+                                    self.lastAppliedDNSConfig.ssid = ssid
+                                    self.lastAppliedDNSConfig.servers = servers
                                 }
+                            } else {
+                                print("Failed to apply DNS configuration for \(ssid)")
                             }
-                        } else {
-                            print("DNS configuration already applied for \(ssid)")
                         }
                     } else {
-                        print("No custom DNS configuration for \(ssid)")
-                        self.data.dnsConfiguration = DNSConfig(ssid: ssid, configured: false)
-                        self.lastAppliedDNSConfig.ssid = nil
-                        self.lastAppliedDNSConfig.servers = nil
+                        print("DNS configuration already applied for \(ssid)")
                     }
                 } else {
-                    print("Not connected to any Wi-Fi network")
-                    self.data.dnsConfiguration = nil
+                    print("No custom DNS configuration for \(ssid)")
+                    self.data.dnsConfiguration = DNSConfig(ssid: ssid, configured: false)
                     self.lastAppliedDNSConfig.ssid = nil
                     self.lastAppliedDNSConfig.servers = nil
                 }
+            } else {
+                print("Not connected to any Wi-Fi network")
+                self.data.dnsConfiguration = nil
+                self.lastAppliedDNSConfig.ssid = nil
+                self.lastAppliedDNSConfig.servers = nil
             }
-            
-            task.waitUntilExit()
         }
     }
     
