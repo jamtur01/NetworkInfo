@@ -3,7 +3,8 @@ import Network
 import AppKit
 import UserNotifications
 
-class NetworkInfoManager {
+// Make NetworkInfoManager inherit from NSObject to support KVC
+@objcMembers class NetworkInfoManager: NSObject {
     // Constants
     private let GEOIP_SERVICE_URL = "https://ipapi.co/json"
     private let REFRESH_INTERVAL: TimeInterval = 120 // seconds
@@ -35,7 +36,59 @@ class NetworkInfoManager {
     private var networkMonitorQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.networkMonitor")
     private var backgroundQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.background", qos: .utility, attributes: .concurrent)
     
-    init() {
+    // KVC support for testing
+    override func setValue(_ value: Any?, forKey key: String) {
+        switch key {
+        case "dnsConfigPath":
+            // Use super.setValue for private constants
+            super.setValue(value, forKey: key)
+        case "localIP":
+            data.localIP = value as? String
+        case "ssid":
+            data.ssid = value as? String
+        case "geoIPData":
+            data.geoIPData = value as? GeoIPData
+        case "dnsInfo":
+            data.dnsInfo = value as? [String]
+        case "dnsTest":
+            data.dnsTest = value as? DNSTest
+        case "vpnConnections":
+            data.vpnConnections = value as? [VPNConnection]
+        case "dnsConfiguration":
+            data.dnsConfiguration = value as? DNSConfig
+        default:
+            super.setValue(value, forKey: key)
+        }
+    }
+    
+    override func value(forKey key: String) -> Any? {
+        switch key {
+        case "dnsConfigPath":
+            return dnsConfigPath
+        case "data":
+            return data
+        case "serviceStates":
+            return serviceStates
+        case "localIP":
+            return data.localIP
+        case "ssid":
+            return data.ssid
+        case "geoIPData":
+            return data.geoIPData
+        case "dnsInfo":
+            return data.dnsInfo
+        case "dnsTest":
+            return data.dnsTest
+        case "vpnConnections":
+            return data.vpnConnections
+        case "dnsConfiguration":
+            return data.dnsConfiguration
+        default:
+            return super.value(forKey: key)
+        }
+    }
+    
+    override init() {
         // Mimic the original spoon location for DNS configuration
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         let preferredPath = homeDir.appendingPathComponent(".config/hammerspoon/dns.conf").path
@@ -62,6 +115,8 @@ class NetworkInfoManager {
                 print("Using existing DNS config at: \(dnsConfigPath)")
             }
         }
+        
+        super.init()
     }
     
     func start() {
@@ -288,71 +343,63 @@ class NetworkInfoManager {
             let pipe = Pipe()
             task.standardOutput = pipe
             
-            do {
-                task.launch()
+            task.launch()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            
+            let ssid = output.isEmpty ? "Not connected" : output
+            print("Detected SSID: \(ssid)")
+            
+            // Process DNS configuration in the background
+            let (dnsServers, configured) = self.readDNSConfig(ssid: ssid)
+            
+            DispatchQueue.main.async {
+                self.data.ssid = ssid
                 
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                
-                let ssid = output.isEmpty ? "Not connected" : output
-                print("Detected SSID: \(ssid)")
-                
-                // Process DNS configuration in the background
-                let (dnsServers, configured) = self.readDNSConfig(ssid: ssid)
-                
-                DispatchQueue.main.async {
-                    self.data.ssid = ssid
-                    
-                    // Update DNS config based on SSID
-                    if ssid != "Not connected" {
-                        if configured, let servers = dnsServers {
-                            self.data.dnsConfiguration = DNSConfig(ssid: ssid, servers: servers, configured: true)
-                            
-                            // Only update DNS settings if the SSID or DNS servers have changed.
-                            if self.lastAppliedDNSConfig.ssid != ssid || self.lastAppliedDNSConfig.servers != servers {
-                                // Update DNS in background
-                                self.backgroundQueue.async {
-                                    if self.updateDNSSettings(dnsServers: servers) {
-                                        print("Successfully applied DNS configuration for \(ssid)")
+                // Update DNS config based on SSID
+                if ssid != "Not connected" {
+                    if configured, let servers = dnsServers {
+                        self.data.dnsConfiguration = DNSConfig(ssid: ssid, servers: servers, configured: true)
+                        
+                        // Only update DNS settings if the SSID or DNS servers have changed.
+                        if self.lastAppliedDNSConfig.ssid != ssid || self.lastAppliedDNSConfig.servers != servers {
+                            // Update DNS in background
+                            self.backgroundQueue.async {
+                                if self.updateDNSSettings(dnsServers: servers) {
+                                    print("Successfully applied DNS configuration for \(ssid)")
+                                    
+                                    DispatchQueue.main.async {
+                                        self.sendNotification(
+                                            title: "Wi-Fi DNS Changed",
+                                            body: "Connected to \(ssid) with DNS: \(servers)"
+                                        )
                                         
-                                        DispatchQueue.main.async {
-                                            self.sendNotification(
-                                                title: "Wi-Fi DNS Changed",
-                                                body: "Connected to \(ssid) with DNS: \(servers)"
-                                            )
-                                            
-                                            self.lastAppliedDNSConfig.ssid = ssid
-                                            self.lastAppliedDNSConfig.servers = servers
-                                        }
-                                    } else {
-                                        print("Failed to apply DNS configuration for \(ssid)")
+                                        self.lastAppliedDNSConfig.ssid = ssid
+                                        self.lastAppliedDNSConfig.servers = servers
                                     }
+                                } else {
+                                    print("Failed to apply DNS configuration for \(ssid)")
                                 }
-                            } else {
-                                print("DNS configuration already applied for \(ssid)")
                             }
                         } else {
-                            print("No custom DNS configuration for \(ssid)")
-                            self.data.dnsConfiguration = DNSConfig(ssid: ssid, configured: false)
-                            self.lastAppliedDNSConfig.ssid = nil
-                            self.lastAppliedDNSConfig.servers = nil
+                            print("DNS configuration already applied for \(ssid)")
                         }
                     } else {
-                        print("Not connected to any Wi-Fi network")
-                        self.data.dnsConfiguration = nil
+                        print("No custom DNS configuration for \(ssid)")
+                        self.data.dnsConfiguration = DNSConfig(ssid: ssid, configured: false)
                         self.lastAppliedDNSConfig.ssid = nil
                         self.lastAppliedDNSConfig.servers = nil
                     }
-                }
-                
-                task.waitUntilExit()
-            } catch {
-                print("Error getting SSID: \(error)")
-                DispatchQueue.main.async {
-                    self.data.ssid = "Error"
+                } else {
+                    print("Not connected to any Wi-Fi network")
                     self.data.dnsConfiguration = nil
+                    self.lastAppliedDNSConfig.ssid = nil
+                    self.lastAppliedDNSConfig.servers = nil
                 }
             }
+            
+            task.waitUntilExit()
         }
     }
     
@@ -465,25 +512,20 @@ class NetworkInfoManager {
                 task.standardOutput = pipe
                 task.standardError = Pipe() // Capture stderr to avoid console output
                 
-                do {
-                    task.launch()
-                    
-                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                    let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                    
-                    // Check for valid IP address in the response, just like the Lua code
-                    let ipAddressPattern = "\\d+\\.\\d+\\.\\d+\\.\\d+"
-                    let success = (output.range(of: ipAddressPattern, options: .regularExpression) != nil)
-                    
-                    print("DNS test for \(domain): \(success ? "Success" : "Failed")")
-                    
-                    results[domain] = DNSTestResult(success: success, response: output)
-                    
-                    task.waitUntilExit()
-                } catch {
-                    print("Error running DNS test for \(domain): \(error)")
-                    results[domain] = DNSTestResult(success: false, response: "Error: \(error.localizedDescription)")
-                }
+                task.launch()
+                
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                
+                // Check for valid IP address in the response, just like the Lua code
+                let ipAddressPattern = "\\d+\\.\\d+\\.\\d+\\.\\d+"
+                let success = (output.range(of: ipAddressPattern, options: .regularExpression) != nil)
+                
+                print("DNS test for \(domain): \(success ? "Success" : "Failed")")
+                
+                results[domain] = DNSTestResult(success: success, response: output)
+                
+                task.waitUntilExit()
                 
                 group.leave()
             }
