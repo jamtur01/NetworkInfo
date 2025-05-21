@@ -74,12 +74,12 @@ final class NetworkInfoTests: XCTestCase {
         let nonExistentPath = "/tmp/non_existent_config_file.conf"
         
         // Temporarily redirect the manager to use the non-existent file
-        let originalPath = manager.value(forKey: "dnsConfigPath") as! String
+        let originalPath = manager.testDNSConfigPath
         defer {
-            manager.setValue(originalPath, forKey: "dnsConfigPath")
+            manager.setTestDNSConfigPath(originalPath)
         }
         
-        manager.setValue(nonExistentPath, forKey: "dnsConfigPath")
+        manager.setTestDNSConfigPath(nonExistentPath)
         
         // Test should handle non-existent file gracefully
         let (servers, found) = manager.readDNSConfig(ssid: "AnySSID")

@@ -111,7 +111,7 @@ extension NetworkInfoManager {
                 let configSSID = trimmedLine[..<range.lowerBound].trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 let dnsServers = trimmedLine[range.upperBound...].trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 
-                if configSSID == ssid && !dnsServers.isEmpty {
+                if configSSID == ssid {
                     print("Found DNS configuration for SSID '\(ssid)': \(dnsServers)")
                     return (dnsServers, true)
                 }

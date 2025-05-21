@@ -42,31 +42,52 @@ import UserNotifications
     
     // MARK: - Initialization
     override init() {
-        // Mimic the original spoon location for DNS configuration
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        let preferredPath = homeDir.appendingPathComponent(".config/hammerspoon/dns.conf").path
+        // Standard macOS app configuration location: Application Support directory
+        let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appDirectory = applicationSupport.appendingPathComponent("NetworkInfo")
         
-        // Check if the config file exists in the original location
-        if FileManager.default.fileExists(atPath: preferredPath) {
-            dnsConfigPath = preferredPath
-            print("Using existing DNS config at: \(dnsConfigPath)")
+        // Create the directory if it doesn't exist
+        try? FileManager.default.createDirectory(at: appDirectory, withIntermediateDirectories: true, attributes: nil)
+        
+        dnsConfigPath = appDirectory.appendingPathComponent("dns.conf").path
+        
+        // For backward compatibility, check if a config exists in the legacy location
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        let legacyPath = homeDir.appendingPathComponent(".config/hammerspoon/dns.conf").path
+        
+        // If the file exists in legacy location but not in the new location, copy it
+        if FileManager.default.fileExists(atPath: legacyPath) && !FileManager.default.fileExists(atPath: dnsConfigPath) {
+            try? FileManager.default.copyItem(atPath: legacyPath, toPath: dnsConfigPath)
+            print("Migrated DNS config from \(legacyPath) to \(dnsConfigPath)")
+        }
+        
+        // Create a default config file with examples if it doesn't exist
+        if !FileManager.default.fileExists(atPath: dnsConfigPath) {
+            let exampleConfig = """
+            # NetworkInfo DNS Configuration
+            # 
+            # This file configures custom DNS servers for different Wi-Fi networks.
+            # Format: SSID = DNS_Server1 DNS_Server2 ...
+            #
+            # Examples:
+            # 
+            # Home = 1.1.1.1 8.8.8.8
+            # Work = 192.168.1.1 192.168.1.2
+            # 
+            # Use Cloudflare for home networks:
+            # HomeWifi = 1.1.1.1 1.0.0.1
+            # 
+            # Use Google DNS for coffee shops:
+            # CoffeeShopWifi = 8.8.8.8 8.8.4.4
+            # 
+            # For empty DNS configuration (use network defaults):
+            # GuestNetwork = 
+            
+            """
+            try? exampleConfig.write(toFile: dnsConfigPath, atomically: true, encoding: .utf8)
+            print("Created new DNS config with examples at: \(dnsConfigPath)")
         } else {
-            // Fall back to application support directory
-            let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            let appDirectory = applicationSupport.appendingPathComponent("NetworkInfo")
-            
-            // Create the directory if it doesn't exist
-            try? FileManager.default.createDirectory(at: appDirectory, withIntermediateDirectories: true, attributes: nil)
-            
-            dnsConfigPath = appDirectory.appendingPathComponent("dns.conf").path
-            
-            // Create a default config file if it doesn't exist
-            if !FileManager.default.fileExists(atPath: dnsConfigPath) {
-                try? "# DNS Configuration\n# Format: SSID = DNS_Server1 DNS_Server2 ...\n".write(toFile: dnsConfigPath, atomically: true, encoding: .utf8)
-                print("Created new DNS config at: \(dnsConfigPath)")
-            } else {
-                print("Using existing DNS config at: \(dnsConfigPath)")
-            }
+            print("Using existing DNS config at: \(dnsConfigPath)")
         }
         
         super.init()

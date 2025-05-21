@@ -30,8 +30,8 @@ final class NetworkOperationTests: XCTestCase {
                 
                 // Wait a moment for background task to complete
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                    let localIP = self?.value(forKey: "data") as? NetworkData
-                    self?.localIPCallback?(localIP?.localIP)
+                    let localIP = self?.testData.localIP
+                    self?.localIPCallback?(localIP)
                 }
             }
         }
@@ -70,17 +70,17 @@ final class NetworkOperationTests: XCTestCase {
         try? testConfig.write(toFile: tempConfigPath, atomically: true, encoding: .utf8)
         
         // Temporarily redirect the manager to use our test file
-        let originalPath = manager.value(forKey: "dnsConfigPath") as! String
+        let originalPath = manager.testDNSConfigPath
         defer {
             // Clean up
             try? FileManager.default.removeItem(atPath: tempConfigPath)
-            manager.setValue(originalPath, forKey: "dnsConfigPath")
+            manager.setTestDNSConfigPath(originalPath)
         }
         
-        manager.setValue(tempConfigPath, forKey: "dnsConfigPath")
+        manager.setTestDNSConfigPath(tempConfigPath)
         
         // Force update the data model with test values
-        manager.setValue("Francis", forKey: "ssid")
+        manager.setTestSSID("Francis")
         
         // Create an expectation to wait for the async operation
         let expectation = XCTestExpectation(description: "DNS configuration update")
@@ -91,7 +91,7 @@ final class NetworkOperationTests: XCTestCase {
         // Wait a moment for background tasks to complete
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             // Verify the DNS config was loaded
-            let networkData = self.manager.value(forKey: "data") as! NetworkData
+            let networkData = self.manager.testData
             let dnsConfig = networkData.dnsConfiguration
             XCTAssertNotNil(dnsConfig)
             XCTAssertEqual(dnsConfig?.ssid, "Francis")
@@ -121,9 +121,7 @@ final class NetworkOperationTests: XCTestCase {
             override func getGeoIPData() {
                 // Instead of making a real network call, use the mock data
                 if let mockData = mockGeoIPData {
-                    let currentData = value(forKey: "data") as! NetworkData
-                    currentData.geoIPData = mockData
-                    setValue(currentData, forKey: "data")
+                    self.setTestGeoIPData(mockData)
                     print("Mock GeoIP data set: \(mockData)")
                 } else {
                     print("No mock GeoIP data available")
@@ -143,7 +141,7 @@ final class NetworkOperationTests: XCTestCase {
         testManager.getGeoIPData()
         
         // Verify the mock data was properly stored
-        let testData = testManager.value(forKey: "data") as! NetworkData
+        let testData = testManager.testData
         XCTAssertNotNil(testData.geoIPData)
         XCTAssertEqual(testData.geoIPData?.query, "71.105.144.84")
         XCTAssertEqual(testData.geoIPData?.isp, "UUNET")
