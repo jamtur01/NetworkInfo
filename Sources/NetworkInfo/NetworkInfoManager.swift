@@ -6,34 +6,34 @@ import UserNotifications
 // MARK: - NetworkInfoManager Core
 @objcMembers class NetworkInfoManager: NSObject {
     // MARK: - Constants
-    private let REFRESH_INTERVAL: TimeInterval = 120 // seconds
-    private let SERVICE_CHECK_INTERVAL: TimeInterval = 60 // seconds
-    private let EXPECTED_DNS = "127.0.0.1"
-    private let TEST_DOMAINS = ["example.com", "google.com", "cloudflare.com"]
+    internal let REFRESH_INTERVAL: TimeInterval = 120 // seconds
+    internal let SERVICE_CHECK_INTERVAL: TimeInterval = 60 // seconds
+    internal let EXPECTED_DNS = "127.0.0.1"
+    internal let TEST_DOMAINS = ["example.com", "google.com", "cloudflare.com"]
     
     // MARK: - File paths
-    private let dnsConfigPath: String
+    internal let dnsConfigPath: String
     
     // MARK: - State variables
-    private var serviceStates: [String: ServiceState] = [
+    internal var serviceStates: [String: ServiceState] = [
         "unbound": ServiceState(),
         "kresd": ServiceState()
     ]
     
-    private var data = NetworkData()
-    private var lastAppliedDNSConfig = DNSConfig()
+    internal var data = NetworkData()
+    internal var lastAppliedDNSConfig = DNSConfig()
     
     // MARK: - Timers
-    private var refreshTimer: Timer?
-    private var serviceTimer: Timer?
+    internal var refreshTimer: Timer?
+    internal var serviceTimer: Timer?
     
     // MARK: - Watchers
-    private var configWatcher: DispatchSourceFileSystemObject?
-    private var networkMonitor: NWPathMonitor?
+    internal var configWatcher: DispatchSourceFileSystemObject?
+    internal var networkMonitor: NWPathMonitor?
     
     // MARK: - Dispatch queues
-    private var networkMonitorQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.networkMonitor")
-    private var backgroundQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.background", qos: .utility, attributes: .concurrent)
+    internal var networkMonitorQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.networkMonitor")
+    internal var backgroundQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.background", qos: .utility, attributes: .concurrent)
     
     // MARK: - Initialization
     override init() {

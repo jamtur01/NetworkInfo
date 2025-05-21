@@ -23,8 +23,8 @@ extension NetworkInfoManager {
             var uniqueDNS: Set<String> = []
             
             // Process each line, preserving order but eliminating duplicates like the Lua code
-            for line in output.components(separatedBy: .newlines) {
-                let dns = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            for line in output.components(separatedBy: CharacterSet.newlines) {
+                let dns = line.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 if !dns.isEmpty && !uniqueDNS.contains(dns) {
                     uniqueDNS.insert(dns)
                     dnsInfo.append(dns)
@@ -63,7 +63,7 @@ extension NetworkInfoManager {
                 task.launch()
                 
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
                 
                 // Check for valid IP address in the response, just like the Lua code
                 let ipAddressPattern = "\\d+\\.\\d+\\.\\d+\\.\\d+"
@@ -98,9 +98,9 @@ extension NetworkInfoManager {
         
         do {
             let fileContent = try String(contentsOfFile: dnsConfigPath, encoding: .utf8)
-            for line in fileContent.components(separatedBy: .newlines) {
+            for line in fileContent.components(separatedBy: CharacterSet.newlines) {
                 // Skip empty lines and comments
-                let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedLine = line.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 if trimmedLine.isEmpty || trimmedLine.hasPrefix("#") {
                     continue
                 }
@@ -108,8 +108,8 @@ extension NetworkInfoManager {
                 // Check for SSID = DNS servers format (exact matching from the Lua code)
                 guard let range = trimmedLine.range(of: "=") else { continue }
                 
-                let configSSID = trimmedLine[..<range.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
-                let dnsServers = trimmedLine[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+                let configSSID = trimmedLine[..<range.lowerBound].trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                let dnsServers = trimmedLine[range.upperBound...].trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 
                 if configSSID == ssid && !dnsServers.isEmpty {
                     print("Found DNS configuration for SSID '\(ssid)': \(dnsServers)")

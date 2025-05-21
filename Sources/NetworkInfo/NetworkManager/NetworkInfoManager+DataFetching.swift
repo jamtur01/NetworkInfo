@@ -110,7 +110,7 @@ extension NetworkInfoManager {
             task.launch()
             
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
             
             DispatchQueue.main.async {
                 self?.data.localIP = output.isEmpty ? "N/A" : output
@@ -135,7 +135,7 @@ extension NetworkInfoManager {
             task.launch()
             
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
             
             let ssid = output.isEmpty ? "Not connected" : output
             print("Detected SSID: \(ssid)")
@@ -211,11 +211,11 @@ extension NetworkInfoManager {
             task.launch()
             
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
             
             var vpnConnections: [VPNConnection] = []
             
-            output.components(separatedBy: .newlines).forEach { line in
+            output.components(separatedBy: CharacterSet.newlines).forEach { line in
                 guard !line.isEmpty else { return }
                 
                 do {

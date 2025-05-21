@@ -28,7 +28,7 @@ extension NetworkInfoManager {
             task.launch()
             
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
             
             // Process output on main thread to update UI
             DispatchQueue.main.async {
@@ -89,7 +89,7 @@ extension NetworkInfoManager {
                 psTask.waitUntilExit()
                 
                 let psData = psPipe.fileHandleForReading.readDataToEndOfFile()
-                let psOutput = String(data: psData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let psOutput = String(data: psData, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
                 
                 print("Process check for kresd (PID 42028): \(psOutput)")
                 
@@ -119,7 +119,7 @@ extension NetworkInfoManager {
             task.launch()
             
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
             
             // Use the same IP address pattern detection as the Lua code
             let ipAddressPattern = "\\d+\\.\\d+\\.\\d+\\.\\d+"

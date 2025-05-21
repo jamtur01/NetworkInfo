@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 
 // MARK: - UI (Menu Building) Extension
 extension NetworkInfoManager {
