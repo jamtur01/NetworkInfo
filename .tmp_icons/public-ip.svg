@@ -1,0 +1,15 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="12" r="10" fill="none" stroke="black" stroke-width="1.8"/>
+  <path d="M12,2 C6.48,2 2,6.48 2,12 C2,17.52 6.48,22 12,22 C17.52,22 22,17.52 22,12 C22,6.48 17.52,2 12,2 Z M3.7,12 C3.7,12 6,15 12,15 C18,15 20.3,12 20.3,12 C20.3,12 18,9 12,9 C6,9 3.7,12 3.7,12 Z" fill="black" fill-rule="evenodd" opacity="0.5"/>
+  <circle cx="12" cy="12" r="3" fill="black"/>
+</svg>
+EOL# Local IP Icon
+cat > "${TEMP_DIR}/local-ip.svg" << 'EOL'
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <rect x="4" y="4" width="16" height="12" rx="2" fill="none" stroke="black" stroke-width="1.8"/>
+  <path d="M8,20 L16,20" stroke="black" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M12,16 L12,20" stroke="black" stroke-width="1.8" stroke-linecap="round"/>
+  <circle cx="8" cy="9" r="1.5" fill="black"/>
+  <circle cx="12" cy="9" r="1.5" fill="black"/>
+  <circle cx="16" cy="9" r="1.5" fill="black"/>
+</svg>

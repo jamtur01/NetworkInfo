@@ -8,14 +8,22 @@ extension NetworkInfoManager {
         let publicIP = data.geoIPData?.query ?? "N/A"
         let publicIPItem = NSMenuItem(title: "Public IP: \(publicIP)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
         publicIPItem.representedObject = publicIP
-        publicIPItem.image = NSImage(named: "PublicIP")
+        if #available(macOS 11.0, *) {
+            publicIPItem.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "Public IP")
+        } else {
+            publicIPItem.image = NSImage(named: "NSGlobeTemplate")
+        }
         menu.addItem(publicIPItem)
         
         // Local IP
         let localIP = data.localIP ?? "N/A"
         let localIPItem = NSMenuItem(title: "Local IP: \(localIP)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
         localIPItem.representedObject = localIP
-        localIPItem.image = NSImage(named: "LocalIP")
+        if #available(macOS 11.0, *) {
+            localIPItem.image = NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: "Local IP")
+        } else {
+            localIPItem.image = NSImage(named: "NSComputer")
+        }
         menu.addItem(localIPItem)
         
         // SSID with DNS Configuration
@@ -35,14 +43,20 @@ extension NetworkInfoManager {
         
         // Refresh Option
         menu.addItem(NSMenuItem.separator())
-        let refreshItem = NSMenuItem(title: "Refresh", action: #selector(AppDelegate.refreshData(_:)), keyEquivalent: "")
-        refreshItem.image = NSImage(named: "Refresh")
+        let refreshItem = NSMenuItem(title: "Refresh", action: #selector(AppDelegate.refreshData(_:)), keyEquivalent: "r")
+        if #available(macOS 11.0, *) {
+            refreshItem.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh")
+        } else {
+            refreshItem.image = NSImage(named: "NSRefreshTemplate")
+        }
         menu.addItem(refreshItem)
         
         // Quit Option
         menu.addItem(NSMenuItem.separator())
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(AppDelegate.quitApp(_:)), keyEquivalent: "")
-        quitItem.image = NSImage(named: "Quit")
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(AppDelegate.quitApp(_:)), keyEquivalent: "q")
+        if #available(macOS 11.0, *) {
+            quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
+        }
         menu.addItem(quitItem)
     }
     
@@ -50,7 +64,11 @@ extension NetworkInfoManager {
         let ssid = data.ssid ?? "Not connected"
         let ssidItem = NSMenuItem(title: "SSID: \(ssid)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
         ssidItem.representedObject = ssid
-        ssidItem.image = NSImage(named: "SSID")
+        if #available(macOS 11.0, *) {
+            ssidItem.image = NSImage(systemSymbolName: "wifi", accessibilityDescription: "SSID")
+        } else {
+            ssidItem.image = NSImage(named: "NSNetwork")
+        }
         menu.addItem(ssidItem)
         
         if let dnsConfig = data.dnsConfiguration {
@@ -79,7 +97,9 @@ extension NetworkInfoManager {
             
             let dnsHeader = NSMenuItem(title: "Current DNS Servers:", action: nil, keyEquivalent: "")
             dnsHeader.isEnabled = false
-            dnsHeader.image = NSImage(named: "DNS")
+            if #available(macOS 11.0, *) {
+                dnsHeader.image = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "DNS Servers")
+            }
             menu.addItem(dnsHeader)
             
             for dns in dnsInfo {
@@ -98,7 +118,9 @@ extension NetworkInfoManager {
             
             let vpnHeader = NSMenuItem(title: "VPN Connections:", action: nil, keyEquivalent: "")
             vpnHeader.isEnabled = false
-            vpnHeader.image = NSImage(named: "VPN")
+            if #available(macOS 11.0, *) {
+                vpnHeader.image = NSImage(systemSymbolName: "lock.shield", accessibilityDescription: "VPN Connections")
+            }
             menu.addItem(vpnHeader)
             
             for vpn in vpnConnections {
@@ -115,7 +137,11 @@ extension NetworkInfoManager {
         
         let serviceHeader = NSMenuItem(title: "Service Status:", action: nil, keyEquivalent: "")
         serviceHeader.isEnabled = false
-        serviceHeader.image = NSImage(named: "Service")
+        if #available(macOS 11.0, *) {
+            serviceHeader.image = NSImage(systemSymbolName: "gear", accessibilityDescription: "Service Status")
+        } else {
+            serviceHeader.image = NSImage(named: "NSAdvanced")
+        }
         menu.addItem(serviceHeader)
         
         for (service, state) in serviceStates {
@@ -155,14 +181,20 @@ extension NetworkInfoManager {
             let ispValue = geoIPData.isp != "N/A" ? geoIPData.isp : "Unknown"
             let ispItem = NSMenuItem(title: "ISP: \(ispValue)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
             ispItem.representedObject = ispValue
-            ispItem.image = NSImage(named: "ISP")
+            if #available(macOS 11.0, *) {
+                ispItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: "ISP")
+            }
             menu.addItem(ispItem)
             
             // Location
             let locationText = "\(geoIPData.country) (\(geoIPData.countryCode))"
             let locationItem = NSMenuItem(title: "Location: \(locationText)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
             locationItem.representedObject = locationText
-            locationItem.image = NSImage(named: "Location")
+            if #available(macOS 11.0, *) {
+                locationItem.image = NSImage(systemSymbolName: "mappin.and.ellipse", accessibilityDescription: "Location")
+            } else {
+                locationItem.image = NSImage(named: "NSLocation")
+            }
             menu.addItem(locationItem)
         }
     }

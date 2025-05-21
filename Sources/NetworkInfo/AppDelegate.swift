@@ -18,14 +18,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
-            // Use custom menu bar icon
-            if let image = NSImage(named: "MenuIcons") {
-                image.isTemplate = true // For proper dark/light mode support
-                button.image = image
+            // Use a custom icon based on OS version
+            if #available(macOS 11.0, *) {
+                // Use SF Symbols on newer macOS
+                button.image = NSImage(systemSymbolName: "network", accessibilityDescription: "Network Info")
             } else {
-                // Fallback to text if image not found
+                // Fallback to text on older macOS
                 button.title = "Net"
             }
+            button.image?.isTemplate = true
             button.target = self
             button.action = #selector(showMenu(_:))
         }

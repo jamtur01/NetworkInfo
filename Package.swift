@@ -12,9 +12,9 @@ let package = Package(
         .executableTarget(
             name: "NetworkInfo",
             dependencies: [],
-            exclude: ["Info.plist", "NetworkInfo.entitlements"],
+            exclude: ["Info.plist", "NetworkInfo.entitlements", "Assets.xcassets"],
             resources: [
-                .process("Assets.xcassets")
+                .process("Resources")
             ]),
         .testTarget(
             name: "NetworkInfoTests",
