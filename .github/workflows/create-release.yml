@@ -28,9 +28,21 @@ jobs:
     
     - name: Create application bundle
       run: |
+        # Print working directory for debugging
+        echo "Current working directory: $(pwd)"
+        echo "Directory contents:"
+        ls -la
+        
+        # Make scripts executable
         chmod +x ./build-app.sh
         chmod +x ./convert_icons.sh
+        
+        # Run the build script
         ./build-app.sh
+        
+        # Verify the app bundle was created
+        echo "Verifying app bundle was created:"
+        ls -la NetworkInfo.app/Contents/MacOS/
         
     - name: Copy app icon and update Info.plist
       run: |

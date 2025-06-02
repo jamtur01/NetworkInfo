@@ -3,12 +3,14 @@
 # Script to build NetworkInfo as a proper macOS app bundle
 
 # Set variables
-WORKSPACE_DIR="/Users/james/src/NetworkInfo"
+WORKSPACE_DIR="$(pwd)"
 APP_NAME="NetworkInfo.app"
 APP_PATH="$WORKSPACE_DIR/$APP_NAME"
 CONTENTS_PATH="$APP_PATH/Contents"
 MACOS_PATH="$CONTENTS_PATH/MacOS"
 RESOURCES_PATH="$CONTENTS_PATH/Resources"
+
+echo "Working directory: $WORKSPACE_DIR"
 
 # Extract version from Version.swift
 echo "Extracting version information..."
@@ -21,7 +23,7 @@ rm -rf "$APP_PATH"
 
 # Build with swift
 echo "Building executable..."
-cd "$WORKSPACE_DIR"
+# No need to cd as we're using the current directory
 swift build -c release
 
 # Check if build succeeded
@@ -88,5 +90,5 @@ ls -la "$CONTENTS_PATH"
 ls -la "$MACOS_PATH"
 
 echo ""
-echo "App bundle created at $APP_PATH"
-echo "You can run it with: open $APP_PATH"
+echo "App bundle created at $APP_NAME"
+echo "You can run it with: open $APP_NAME"
