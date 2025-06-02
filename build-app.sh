@@ -10,6 +10,12 @@ CONTENTS_PATH="$APP_PATH/Contents"
 MACOS_PATH="$CONTENTS_PATH/MacOS"
 RESOURCES_PATH="$CONTENTS_PATH/Resources"
 
+# Extract version from Version.swift
+echo "Extracting version information..."
+VERSION=$(grep -m 1 "static let version = " Sources/NetworkInfo/Version.swift | cut -d '"' -f 2)
+BUILD=$(grep -m 1 "static let build = " Sources/NetworkInfo/Version.swift | cut -d '"' -f 2)
+echo "Building NetworkInfo version $VERSION (build $BUILD)..."
+
 # Clean up previous app
 rm -rf "$APP_PATH"
 
@@ -56,9 +62,9 @@ cat > "$CONTENTS_PATH/Info.plist" << EOF
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$VERSION</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$BUILD</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.15</string>
     <key>NSHumanReadableCopyright</key>

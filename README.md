@@ -58,3 +58,33 @@ To make NetworkInfo start automatically when you log in:
 4. Click the "+" button
 5. Navigate to and select NetworkInfo.app
 6. Click "Add"
+
+## Releases
+
+### Creating a New Release
+
+To create a new release:
+
+1. Update the version in `Sources/NetworkInfo/Version.swift`
+2. Commit your changes:
+   ```sh
+   git add .
+   git commit -m "Bump version to X.Y.Z"
+   ```
+3. Create and push a new tag:
+   ```sh
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+4. The GitHub Actions workflow will automatically:
+   - Build and test the app
+   - Create the application bundle
+   - Package it as a ZIP file
+   - Create a GitHub release with the ZIP file
+
+### Installing from a Release
+
+1. Download the NetworkInfo.zip file from the latest release
+2. Unzip the file
+3. Move NetworkInfo.app to your Applications folder
+4. Open the application
