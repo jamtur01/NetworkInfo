@@ -75,38 +75,21 @@ extension NetworkInfoManager {
                 return
             }
             
-            // For kresd specifically, we'll use a more direct method since it's special
-            if service == "kresd" {
-                // First check if process is running with ps
-                let psTask = Process()
-                psTask.launchPath = "/bin/sh"
-                psTask.arguments = ["-c", "ps -p 42028 -o comm="]
-                
-                let psPipe = Pipe()
-                psTask.standardOutput = psPipe
-                
-                psTask.launch()
-                psTask.waitUntilExit()
-                
-                let psData = psPipe.fileHandleForReading.readDataToEndOfFile()
-                let psOutput = String(data: psData, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-                
-                print("Process check for kresd (PID 42028): \(psOutput)")
-                
-                // If process exists and is running, we'll consider it responding
-                let isResponding = !psOutput.isEmpty
-                
-                DispatchQueue.main.async {
-                    self.serviceStates[service]?.responding = isResponding
-                }
-                
-                print("Setting kresd responding status to: \(isResponding)")
-                return
-            }
-            
-            // For unbound, use the regular DNS check
+            // Different services listen on different ports
+            // unbound typically uses port 53
+            // kresd typically uses port 53053 or sometimes 5353
             let server = "127.0.0.1"
-            let port = "53"  // unbound is always on port 53
+            let port: String
+            
+            switch service {
+            case "unbound":
+                port = "53"
+            case "kresd":
+                // kresd is configured to listen on port 8053 according to kresd.conf
+                port = "8053"
+            default:
+                port = "53"
+            }
             
             let task = Process()
             task.launchPath = "/usr/bin/dig"
@@ -126,7 +109,9 @@ extension NetworkInfoManager {
             let responding = (output.range(of: ipAddressPattern, options: .regularExpression) != nil)
             
             print("\(service) DNS test on port \(port): \(responding ? "Responding" : "Not responding")")
-            print("Output: \(output)")
+            if !output.isEmpty {
+                print("Output: \(output)")
+            }
             
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }

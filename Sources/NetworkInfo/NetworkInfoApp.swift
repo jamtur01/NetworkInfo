@@ -14,7 +14,6 @@ struct NetworkInfoApp {
         app.setActivationPolicy(.accessory)
         
         // Run the application
-        app.activate(ignoringOtherApps: true)
         app.run()
     }
 }

@@ -3,27 +3,39 @@ import Foundation
 
 // MARK: - UI (Menu Building) Extension
 extension NetworkInfoManager {
+    // Helper method to create menu items with proper icon support
+    private func createMenuItem(title: String, 
+                               representedObject: String? = nil,
+                               systemSymbol: String? = nil,
+                               legacyImage: String? = nil,
+                               action: Selector? = #selector(AppDelegate.copyToClipboard(_:))) -> NSMenuItem {
+        let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        menuItem.representedObject = representedObject ?? title
+        
+        if let systemSymbol = systemSymbol, #available(macOS 11.0, *) {
+            menuItem.image = NSImage(systemSymbolName: systemSymbol, accessibilityDescription: title)
+        } else if let legacyImage = legacyImage {
+            menuItem.image = NSImage(named: legacyImage)
+        }
+        
+        return menuItem
+    }
+    
     func buildMenuItems(menu: NSMenu) {
         // Public IP
         let publicIP = data.geoIPData?.query ?? "N/A"
-        let publicIPItem = NSMenuItem(title: "Public IP: \(publicIP)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
-        publicIPItem.representedObject = publicIP
-        if #available(macOS 11.0, *) {
-            publicIPItem.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "Public IP")
-        } else {
-            publicIPItem.image = NSImage(named: "NSGlobeTemplate")
-        }
+        let publicIPItem = createMenuItem(title: "Public IP: \(publicIP)", 
+                                         representedObject: publicIP,
+                                         systemSymbol: "globe",
+                                         legacyImage: "NSGlobeTemplate")
         menu.addItem(publicIPItem)
         
         // Local IP
         let localIP = data.localIP ?? "N/A"
-        let localIPItem = NSMenuItem(title: "Local IP: \(localIP)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
-        localIPItem.representedObject = localIP
-        if #available(macOS 11.0, *) {
-            localIPItem.image = NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: "Local IP")
-        } else {
-            localIPItem.image = NSImage(named: "NSComputer")
-        }
+        let localIPItem = createMenuItem(title: "Local IP: \(localIP)",
+                                        representedObject: localIP,
+                                        systemSymbol: "desktopcomputer",
+                                        legacyImage: "NSComputer")
         menu.addItem(localIPItem)
         
         // SSID with DNS Configuration
@@ -43,32 +55,28 @@ extension NetworkInfoManager {
         
         // Refresh Option
         menu.addItem(NSMenuItem.separator())
-        let refreshItem = NSMenuItem(title: "Refresh", action: #selector(AppDelegate.refreshData(_:)), keyEquivalent: "r")
-        if #available(macOS 11.0, *) {
-            refreshItem.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh")
-        } else {
-            refreshItem.image = NSImage(named: "NSRefreshTemplate")
-        }
+        let refreshItem = createMenuItem(title: "Refresh",
+                                        systemSymbol: "arrow.clockwise",
+                                        legacyImage: "NSRefreshTemplate",
+                                        action: #selector(AppDelegate.refreshData(_:)))
+        refreshItem.keyEquivalent = "r"
         menu.addItem(refreshItem)
         
         // Quit Option
         menu.addItem(NSMenuItem.separator())
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(AppDelegate.quitApp(_:)), keyEquivalent: "q")
-        if #available(macOS 11.0, *) {
-            quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
-        }
+        let quitItem = createMenuItem(title: "Quit",
+                                     systemSymbol: "power",
+                                     action: #selector(AppDelegate.quitApp(_:)))
+        quitItem.keyEquivalent = "q"
         menu.addItem(quitItem)
     }
     
     private func addSSIDMenuItems(menu: NSMenu) {
         let ssid = data.ssid ?? "Not connected"
-        let ssidItem = NSMenuItem(title: "SSID: \(ssid)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
-        ssidItem.representedObject = ssid
-        if #available(macOS 11.0, *) {
-            ssidItem.image = NSImage(systemSymbolName: "wifi", accessibilityDescription: "SSID")
-        } else {
-            ssidItem.image = NSImage(named: "NSNetwork")
-        }
+        let ssidItem = createMenuItem(title: "SSID: \(ssid)",
+                                     representedObject: ssid,
+                                     systemSymbol: "wifi",
+                                     legacyImage: "NSNetwork")
         menu.addItem(ssidItem)
         
         if let dnsConfig = data.dnsConfiguration {
@@ -179,22 +187,17 @@ extension NetworkInfoManager {
             
             // ISP
             let ispValue = geoIPData.isp != "N/A" ? geoIPData.isp : "Unknown"
-            let ispItem = NSMenuItem(title: "ISP: \(ispValue)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
-            ispItem.representedObject = ispValue
-            if #available(macOS 11.0, *) {
-                ispItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: "ISP")
-            }
+            let ispItem = createMenuItem(title: "ISP: \(ispValue)",
+                                        representedObject: ispValue,
+                                        systemSymbol: "network")
             menu.addItem(ispItem)
             
             // Location
             let locationText = "\(geoIPData.country) (\(geoIPData.countryCode))"
-            let locationItem = NSMenuItem(title: "Location: \(locationText)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
-            locationItem.representedObject = locationText
-            if #available(macOS 11.0, *) {
-                locationItem.image = NSImage(systemSymbolName: "mappin.and.ellipse", accessibilityDescription: "Location")
-            } else {
-                locationItem.image = NSImage(named: "NSLocation")
-            }
+            let locationItem = createMenuItem(title: "Location: \(locationText)",
+                                            representedObject: locationText,
+                                            systemSymbol: "mappin.and.ellipse",
+                                            legacyImage: "NSLocation")
             menu.addItem(locationItem)
         }
     }

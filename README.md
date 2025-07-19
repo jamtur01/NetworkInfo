@@ -11,17 +11,26 @@ A macOS menubar app that displays network information including:
 
 ## Building
 
-1. Build the application bundle:
+Build the application bundle:
 ```sh
-./build-app.sh
+./build.sh
 ```
 
-2. Run the app:
+This will:
+- Build the release version
+- Create a proper macOS application bundle
+- Copy all resources and icons
+- Display the app version from Version.swift
+
+Run the app:
 ```sh
 open NetworkInfo.app
 ```
 
-This will create a proper macOS application bundle with all the necessary components.
+Additional commands:
+- Run tests: `swift test`
+- Clean build: `swift package clean`
+- Debug build: `swift build`
 
 ## Configuration
 

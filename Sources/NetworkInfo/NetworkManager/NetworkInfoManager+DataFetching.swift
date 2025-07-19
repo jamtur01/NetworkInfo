@@ -37,7 +37,10 @@ extension NetworkInfoManager {
                 let semaphore = DispatchSemaphore(value: 0)
                 var fetchedData: GeoIPData?
                 
-                URLSession.shared.dataTask(with: url) { data, response, error in
+                var request = URLRequest(url: url)
+                request.timeoutInterval = 5.0
+                
+                URLSession.shared.dataTask(with: request) { data, response, error in
                     defer { semaphore.signal() }
                     
                     guard let data = data,

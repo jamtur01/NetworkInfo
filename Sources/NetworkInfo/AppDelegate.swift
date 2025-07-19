@@ -39,6 +39,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         networkInfoManager.buildMenu(menu: menu)
         statusItem?.menu = menu
+        statusItem?.button?.performClick(nil)
     }
     
     @objc func copyToClipboard(_ sender: NSMenuItem) {

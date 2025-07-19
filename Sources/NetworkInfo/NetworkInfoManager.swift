@@ -141,33 +141,55 @@ import UserNotifications
         data = NetworkData()
         data.dnsConfiguration = dnsConfiguration
         
-        // Fetch all data asynchronously
+        // Use a dispatch group for better coordination
+        let refreshGroup = DispatchGroup()
+        
+        // Fetch all data asynchronously with dispatch group
+        refreshGroup.enter()
         backgroundQueue.async { [weak self] in
             self?.getGeoIPData()
+            refreshGroup.leave()
         }
         
+        refreshGroup.enter()
         backgroundQueue.async { [weak self] in
             self?.getLocalIPAddress()
+            refreshGroup.leave()
         }
         
+        refreshGroup.enter()
         backgroundQueue.async { [weak self] in
             self?.getCurrentSSID()
+            refreshGroup.leave()
         }
         
+        refreshGroup.enter()
         backgroundQueue.async { [weak self] in
             self?.getVPNConnections()
+            refreshGroup.leave()
         }
         
+        refreshGroup.enter()
         backgroundQueue.async { [weak self] in
             self?.getDNSInfo()
+            refreshGroup.leave()
         }
         
+        refreshGroup.enter()
         backgroundQueue.async { [weak self] in
             self?.testDNSResolution()
+            refreshGroup.leave()
         }
         
+        refreshGroup.enter()
         backgroundQueue.async { [weak self] in
             self?.monitorServices()
+            refreshGroup.leave()
+        }
+        
+        // Notify when all tasks complete (optional)
+        refreshGroup.notify(queue: .main) {
+            print("All network data refreshed")
         }
     }
     
