@@ -190,6 +190,8 @@ import UserNotifications
         // Notify when all tasks complete (optional)
         refreshGroup.notify(queue: .main) {
             print("All network data refreshed")
+            // Post a notification that data has been updated
+            NotificationCenter.default.post(name: NSNotification.Name("NetworkDataUpdated"), object: nil)
         }
     }
     

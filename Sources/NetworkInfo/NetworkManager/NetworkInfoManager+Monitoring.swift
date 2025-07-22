@@ -9,7 +9,8 @@ extension NetworkInfoManager {
         networkMonitor?.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
                 print("Network configuration changed")
-                self?.getCurrentSSID()
+                // Refresh all data when network changes
+                self?.refreshData()
             }
         }
         
@@ -35,7 +36,7 @@ extension NetworkInfoManager {
         
         configWatcher?.setEventHandler { [weak self] in
             print("dns.conf has changed. Reloading DNS configuration.")
-            self?.getCurrentSSID()
+            self?.refreshData()
         }
         
         configWatcher?.setCancelHandler {
