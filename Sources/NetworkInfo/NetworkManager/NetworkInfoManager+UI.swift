@@ -124,19 +124,106 @@ extension NetworkInfoManager {
         if let vpnConnections = data.vpnConnections, !vpnConnections.isEmpty {
             menu.addItem(NSMenuItem.separator())
             
-            let vpnHeader = NSMenuItem(title: "VPN Connections:", action: nil, keyEquivalent: "")
+            let vpnHeader = NSMenuItem(title: "VPN Connections (\(vpnConnections.count)):", action: nil, keyEquivalent: "")
             vpnHeader.isEnabled = false
             if #available(macOS 11.0, *) {
                 vpnHeader.image = NSImage(systemSymbolName: "lock.shield", accessibilityDescription: "VPN Connections")
+            } else {
+                // Fallback icon for older systems
+                if let vpnIcon = NSImage(named: "vpn") {
+                    vpnHeader.image = vpnIcon
+                }
             }
             menu.addItem(vpnHeader)
             
             for vpn in vpnConnections {
-                let vpnItem = NSMenuItem(title: "  • \(vpn.name): \(vpn.ip)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
-                vpnItem.representedObject = "\(vpn.name): \(vpn.ip)"
+                // Main VPN connection item
+                let vpnTitle: String
+                if let serverName = vpn.serverName, !serverName.isEmpty {
+                    vpnTitle = "  🔒 \(serverName)"
+                } else {
+                    vpnTitle = "  🔒 \(vpn.interfaceName)"
+                }
+                
+                let vpnItem = NSMenuItem(title: vpnTitle, action: nil, keyEquivalent: "")
+                vpnItem.isEnabled = false
                 vpnItem.indentationLevel = 1
                 menu.addItem(vpnItem)
+                
+                // VPN details sub-items
+                let detailsToShow: [(String, String)] = [
+                    ("Interface", vpn.interfaceName),
+                    ("IP Address", vpn.ip),
+                    ("Type", vpn.vpnType),
+                    ("Status", vpn.status)
+                ]
+                
+                for (label, value) in detailsToShow {
+                    if value != "N/A" && !value.isEmpty {
+                        let detailItem = NSMenuItem(title: "    \(label): \(value)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
+                        detailItem.representedObject = "\(label): \(value)"
+                        detailItem.indentationLevel = 2
+                        
+                        // Add appropriate icons for different detail types
+                        if #available(macOS 11.0, *) {
+                            switch label {
+                            case "IP Address":
+                                detailItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: "IP Address")
+                            case "Type":
+                                detailItem.image = NSImage(systemSymbolName: "gear", accessibilityDescription: "VPN Type")
+                            case "Status":
+                                let iconName = vpn.status == "Connected" ? "checkmark.circle" : "xmark.circle"
+                                detailItem.image = NSImage(systemSymbolName: iconName, accessibilityDescription: "Status")
+                            case "Interface":
+                                detailItem.image = NSImage(systemSymbolName: "cable.connector", accessibilityDescription: "Interface")
+                            default:
+                                break
+                            }
+                        }
+                        
+                        menu.addItem(detailItem)
+                    }
+                }
+                
+                // Add statistics if available
+                if let bytesReceived = vpn.bytesReceived, !bytesReceived.isEmpty {
+                    let rxItem = NSMenuItem(title: "    ⬇️ Received: \(bytesReceived)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
+                    rxItem.representedObject = "Bytes Received: \(bytesReceived)"
+                    rxItem.indentationLevel = 2
+                    menu.addItem(rxItem)
+                }
+                
+                if let bytesSent = vpn.bytesSent, !bytesSent.isEmpty {
+                    let txItem = NSMenuItem(title: "    ⬆️ Sent: \(bytesSent)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
+                    txItem.representedObject = "Bytes Sent: \(bytesSent)"
+                    txItem.indentationLevel = 2
+                    menu.addItem(txItem)
+                }
+                
+                if let remoteAddress = vpn.remoteAddress, !remoteAddress.isEmpty {
+                    let remoteItem = NSMenuItem(title: "    🌐 Remote: \(remoteAddress)", action: #selector(AppDelegate.copyToClipboard(_:)), keyEquivalent: "")
+                    remoteItem.representedObject = "Remote Address: \(remoteAddress)"
+                    remoteItem.indentationLevel = 2
+                    menu.addItem(remoteItem)
+                }
+                
+                // Add a small separator between VPN connections if there are multiple
+                if vpn != vpnConnections.last {
+                    let miniSeparator = NSMenuItem(title: "    ──────────", action: nil, keyEquivalent: "")
+                    miniSeparator.isEnabled = false
+                    miniSeparator.indentationLevel = 2
+                    menu.addItem(miniSeparator)
+                }
             }
+        } else {
+            // Show "No VPN connections" if none are detected
+            menu.addItem(NSMenuItem.separator())
+            let noVpnItem = NSMenuItem(title: "🔓 No VPN connections", action: nil, keyEquivalent: "")
+            noVpnItem.isEnabled = false
+            if #available(macOS 11.0, *) {
+                noVpnItem.image = NSImage(systemSymbolName: "lock.open", accessibilityDescription: "No VPN")
+            }
+            menu.addItem(noVpnItem)
         }
     }
     

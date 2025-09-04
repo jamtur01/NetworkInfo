@@ -385,14 +385,64 @@ extension NetworkInfoManager {
     
     nonisolated func getVPNConnections() {
         backgroundQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Enhanced VPN detection script
             let task = Process()
             task.launchPath = "/bin/sh"
             task.arguments = ["-c", """
-                for iface in $(ifconfig -l | grep -o 'utun[0-9]*'); do
-                    ip=$(ifconfig "$iface" | awk '/inet / {print $2}')
-                    if [ -n "$ip" ]; then
-                        echo "VPN Interface: $iface, IP Address: $ip"
+                # Detect VPN interfaces and gather detailed information
+                for iface in $(ifconfig -l | tr ' ' '\n' | grep -E '^(utun|tun|tap|ppp|ipsec)[0-9]*$'); do
+                    # Get interface details
+                    ifconfig_output=$(ifconfig "$iface" 2>/dev/null)
+                    if [ $? -eq 0 ]; then
+                        # Extract IP address
+                        ip=$(echo "$ifconfig_output" | awk '/inet / && !/127\\.0\\.0\\.1/ {print $2; exit}')
+                        if [ -n "$ip" ]; then
+                            # Get interface flags and status
+                            flags=$(echo "$ifconfig_output" | head -1 | sed 's/.*flags=[0-9]*<\\\\([^>]*\\\\)>.*/\\\\1/')
+                            mtu=$(echo "$ifconfig_output" | head -1 | sed 's/.*mtu \\\\([0-9]*\\\\).*/\\\\1/')
+                            
+                            # Get statistics if available
+                            stats=$(echo "$ifconfig_output" | grep -E "(input|output)" | head -2)
+                            
+                            # Determine VPN type based on interface name
+                            case "$iface" in
+                                utun*) vpn_type="IPSec/IKEv2" ;;
+                                tun*) vpn_type="OpenVPN/Tunnel" ;;
+                                tap*) vpn_type="TAP Bridge" ;;
+                                ppp*) vpn_type="PPP/L2TP" ;;
+                                ipsec*) vpn_type="IPSec" ;;
+                                *) vpn_type="Unknown" ;;
+                            esac
+                            
+                            # Check if interface is active
+                            if echo "$flags" | grep -q "UP.*RUNNING"; then
+                                status="Connected"
+                            else
+                                status="Inactive"
+                            fi
+                            
+                            echo "INTERFACE:$iface|IP:$ip|TYPE:$vpn_type|STATUS:$status|FLAGS:$flags|MTU:$mtu"
+                            
+                            # Add statistics if available
+                            if [ -n "$stats" ]; then
+                                rx_bytes=$(echo "$stats" | grep input | sed -n 's/.*input.*\\\\([0-9]\\\\+ bytes\\\\).*/\\\\1/p' | head -1)
+                                tx_bytes=$(echo "$stats" | grep output | sed -n 's/.*output.*\\\\([0-9]\\\\+ bytes\\\\).*/\\\\1/p' | head -1)
+                                if [ -n "$rx_bytes" ] || [ -n "$tx_bytes" ]; then
+                                    echo "STATS:$iface|RX:${rx_bytes:-0 bytes}|TX:${tx_bytes:-0 bytes}"
+                                fi
+                            fi
+                        fi
                     fi
+                done
+                
+                # Also check for common VPN processes
+                echo "--- PROCESSES ---"
+                ps aux | grep -E '(openvpn|wireguard|strongswan|racoon|cisco|tunnelblick)' | grep -v grep | while read line; do
+                    proc=$(echo "$line" | awk '{print $11}' | sed 's|.*/||')
+                    pid=$(echo "$line" | awk '{print $2}')
+                    echo "PROCESS:$proc|PID:$pid"
                 done
             """]
             
@@ -405,29 +455,133 @@ extension NetworkInfoManager {
             let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
             
             var vpnConnections: [VPNConnection] = []
+            var vpnProcesses: [String] = []
             
-            output.components(separatedBy: CharacterSet.newlines).forEach { line in
-                guard !line.isEmpty else { return }
+            let lines = output.components(separatedBy: CharacterSet.newlines)
+            var currentInterface: String?
+            var interfaceStats: [String: String] = [:]
+            
+            for line in lines {
+                guard !line.isEmpty else { continue }
                 
-                do {
-                    let pattern = "VPN Interface: (\\S+), IP Address: (\\S+)"
-                    let regex = try NSRegularExpression(pattern: pattern, options: [])
+                if line == "--- PROCESSES ---" {
+                    // Switch to process parsing mode
+                    continue
+                } else if line.hasPrefix("INTERFACE:") {
+                    // Parse interface information
+                    let components = line.components(separatedBy: "|")
+                    var interfaceInfo: [String: String] = [:]
                     
-                    if let match = regex.firstMatch(in: line, options: [], range: NSRange(location: 0, length: line.count)) {
-                        if let interfaceRange = Range(match.range(at: 1), in: line),
-                           let ipRange = Range(match.range(at: 2), in: line) {
-                            let interface = String(line[interfaceRange])
-                            let ip = String(line[ipRange])
-                            vpnConnections.append(VPNConnection(name: interface, ip: ip))
+                    for component in components {
+                        let parts = component.components(separatedBy: ":")
+                        if parts.count >= 2 {
+                            let key = parts[0]
+                            let value = parts[1...].joined(separator: ":")
+                            interfaceInfo[key] = value
                         }
                     }
-                } catch {
-                    print("Error parsing VPN connections: \(error)")
+                    
+                    if let interface = interfaceInfo["INTERFACE"],
+                       let ip = interfaceInfo["IP"] {
+                        let vpnType = interfaceInfo["TYPE"] ?? "Unknown"
+                        let status = interfaceInfo["STATUS"] ?? "Unknown"
+                        
+                        let vpnConnection = VPNConnection(
+                            interfaceName: interface,
+                            ip: ip,
+                            vpnType: vpnType,
+                            status: status
+                        )
+                        
+                        vpnConnections.append(vpnConnection)
+                        currentInterface = interface
+                    }
+                } else if line.hasPrefix("STATS:") && currentInterface != nil {
+                    // Parse statistics for the current interface
+                    let components = line.components(separatedBy: "|")
+                    for component in components {
+                        let parts = component.components(separatedBy: ":")
+                        if parts.count >= 2 {
+                            interfaceStats[parts[0]] = parts[1...].joined(separator: ":")
+                        }
+                    }
+                    
+                    // Update the last VPN connection with stats
+                    if let lastVPN = vpnConnections.last {
+                        lastVPN.bytesReceived = interfaceStats["RX"]
+                        lastVPN.bytesSent = interfaceStats["TX"]
+                    }
+                    
+                    currentInterface = nil
+                    interfaceStats.removeAll()
+                } else if line.hasPrefix("PROCESS:") {
+                    // Parse VPN process information
+                    let components = line.components(separatedBy: "|")
+                    var processInfo: [String: String] = [:]
+                    
+                    for component in components {
+                        let parts = component.components(separatedBy: ":")
+                        if parts.count >= 2 {
+                            processInfo[parts[0]] = parts[1...].joined(separator: ":")
+                        }
+                    }
+                    
+                    if let process = processInfo["PROCESS"],
+                       let pid = processInfo["PID"] {
+                        vpnProcesses.append("\(process) (PID: \(pid))")
+                    }
                 }
             }
             
+            // Also try to get active VPN services from scutil
+            let scutilTask = Process()
+            scutilTask.launchPath = "/usr/sbin/scutil"
+            scutilTask.arguments = ["--nc", "list"]
+            
+            let scutilPipe = Pipe()
+            scutilTask.standardOutput = scutilPipe
+            scutilTask.launch()
+            
+            let scutilData = scutilPipe.fileHandleForReading.readDataToEndOfFile()
+            let scutilOutput = String(data: scutilData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            scutilTask.waitUntilExit()
+            
+            // Parse scutil output for VPN services
+            for line in scutilOutput.components(separatedBy: .newlines) {
+                if line.contains("Connected") || line.contains("Connecting") {
+                    // Extract VPN service name and status
+                    let components = line.components(separatedBy: "\"")
+                    if components.count >= 2 {
+                        let serviceName = components[1]
+                        let status = line.contains("Connected") ? "Connected" : "Connecting"
+                        
+                        // Check if we already have this VPN in our interface list
+                        let existingVPN = vpnConnections.first { $0.serverName == serviceName }
+                        if existingVPN == nil {
+                            // Create a new VPN entry for service-based VPNs
+                            let serviceVPN = VPNConnection(
+                                interfaceName: "Service",
+                                ip: "N/A",
+                                vpnType: "System VPN",
+                                status: status
+                            )
+                            serviceVPN.serverName = serviceName
+                            vpnConnections.append(serviceVPN)
+                        } else {
+                            // Update existing VPN with service name
+                            existingVPN?.serverName = serviceName
+                        }
+                    }
+                }
+            }
+            
+            print("Detected \(vpnConnections.count) VPN connections")
+            if !vpnProcesses.isEmpty {
+                print("VPN Processes: \(vpnProcesses.joined(separator: ", "))")
+            }
+            
             DispatchQueue.main.async {
-                self?.data.vpnConnections = vpnConnections
+                self.data.vpnConnections = vpnConnections
             }
             
             task.waitUntilExit()

@@ -35,13 +35,27 @@ import Foundation
 }
 
 @objc class VPNConnection: NSObject, @unchecked Sendable {
-    @objc var name: String
+    @objc var interfaceName: String
     @objc var ip: String
+    @objc var vpnType: String
+    @objc var status: String
+    @objc var remoteAddress: String?
+    @objc var serverName: String?
+    @objc var bytesReceived: String?
+    @objc var bytesSent: String?
+    @objc var connectedSince: String?
     
-    init(name: String, ip: String) {
-        self.name = name
+    init(interfaceName: String, ip: String, vpnType: String = "Unknown", status: String = "Connected") {
+        self.interfaceName = interfaceName
         self.ip = ip
+        self.vpnType = vpnType
+        self.status = status
         super.init()
+    }
+    
+    // Convenience computed property for backward compatibility
+    @objc var name: String {
+        return interfaceName
     }
 }
 

@@ -25,7 +25,7 @@ final class MenuBuildingTests: XCTestCase {
             "google.com": DNSTestResult(success: true, response: "142.250.69.110"),
             "cloudflare.com": DNSTestResult(success: true, response: "104.16.132.229")
         ])
-        let vpnConnections = [VPNConnection(name: "utun4", ip: "10.6.0.2")]
+        let vpnConnections = [VPNConnection(interfaceName: "utun4", ip: "10.6.0.2")]
         let dnsConfig = DNSConfig(ssid: "Francis", servers: "127.0.0.1 192.168.1.1", configured: true)
         
         // Populate the manager's data
