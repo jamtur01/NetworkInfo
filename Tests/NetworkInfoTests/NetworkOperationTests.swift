@@ -7,8 +7,7 @@ final class NetworkOperationTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
-        manager = NetworkInfoManager()
-        manager.enableTestMode() // Enable test mode to avoid notification issues
+        // Setup will be done in each test method that needs MainActor
     }
     
     override func tearDown() {
@@ -18,29 +17,24 @@ final class NetworkOperationTests: XCTestCase {
     
     // MARK: - Test async operations
     
-    func testGetLocalIPAddress() {
-        // Create a subclass for testing with mocked data
-        class TestableNetworkInfoManager: NetworkInfoManager {
-            override func getLocalIPAddress() {
-                // For test predictability, just mock an IP address
-                // This will work in both local and CI environments
-                self.setTestLocalIP("192.168.1.100")
-            }
-        }
+    @MainActor func testGetLocalIPAddress() {
+        manager = NetworkInfoManager()
+        manager.enableTestMode()
         
-        let testManager = TestableNetworkInfoManager()
-        testManager.enableTestMode()
-        testManager.getLocalIPAddress()
+        // Directly test the local IP functionality
+        manager.setTestLocalIP("192.168.1.100")
         
         // Verify we got the expected IP
-        XCTAssertEqual(testManager.testData.localIP, "192.168.1.100")
+        XCTAssertEqual(manager.testData.localIP, "192.168.1.100")
         
         // Test IP pattern detection
         let ipPattern = "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"
-        XCTAssertNotNil(testManager.testData.localIP?.range(of: ipPattern, options: .regularExpression))
+        XCTAssertNotNil(manager.testData.localIP?.range(of: ipPattern, options: .regularExpression))
     }
     
-    func testDNSConfigurationUpdate() {
+    @MainActor func testDNSConfigurationUpdate() {
+        manager = NetworkInfoManager()
+        manager.enableTestMode()
         // This test verifies the DNS configuration update workflow
         
         // Create a mock DNS config first
@@ -64,66 +58,35 @@ final class NetworkOperationTests: XCTestCase {
         
         manager.setTestDNSConfigPath(tempConfigPath)
         
-        // Create a subclass for testing
-        class TestableNetworkInfoManager: NetworkInfoManager {
-            override func getCurrentSSID() {
-                // Don't try to get actual SSID which depends on hardware
-                // Instead, directly set the test data
-                self.setTestSSID("Francis")
-                
-                // Manually apply DNS configuration since we're skipping the actual network check
-                let (servers, found) = self.readDNSConfig(ssid: "Francis")
-                if found, let servers = servers {
-                    let dnsConfig = DNSConfig(ssid: "Francis", servers: servers, configured: true)
-                    self.setTestDNSConfiguration(dnsConfig)
-                }
-            }
-        }
+        // Directly test DNS configuration functionality
+        manager.setTestDNSConfigPath(tempConfigPath)
         
-        // Use the testable manager
-        let testManager = TestableNetworkInfoManager()
-        testManager.enableTestMode()
-        testManager.setTestDNSConfigPath(tempConfigPath)
+        // Test DNS config reading
+        let (servers, found) = manager.readDNSConfig(ssid: "Francis")
+        XCTAssertTrue(found)
+        XCTAssertEqual(servers, "127.0.0.1 192.168.1.1")
         
-        // Call the method that reads the config
-        testManager.getCurrentSSID()
+        // Manually set up the expected result
+        manager.setTestSSID("Francis")
+        let dnsConfig = DNSConfig(ssid: "Francis", servers: servers, configured: true)
+        manager.setTestDNSConfiguration(dnsConfig)
         
-        // Verify the DNS config was loaded correctly
-        let networkData = testManager.testData
-        let dnsConfig = networkData.dnsConfiguration
-        
-        XCTAssertNotNil(dnsConfig)
-        XCTAssertEqual(dnsConfig?.ssid, "Francis")
-        XCTAssertEqual(dnsConfig?.servers, "127.0.0.1 192.168.1.1")
-        XCTAssertTrue(dnsConfig?.configured ?? false)
+        // Verify the DNS config was set correctly
+        let networkData = manager.testData
+        let testDnsConfig = networkData.dnsConfiguration
+        XCTAssertNotNil(testDnsConfig)
+        XCTAssertEqual(testDnsConfig?.ssid, "Francis")
+        XCTAssertEqual(testDnsConfig?.servers, "127.0.0.1 192.168.1.1")
+        XCTAssertTrue(testDnsConfig?.configured ?? false)
     }
     
     // MARK: - Test Mock GeoIP Fetching
     
-    func testMockGeoIPDataFetch() {
-        let expectation = XCTestExpectation(description: "Mock GeoIP data fetch")
+    @MainActor func testMockGeoIPDataFetch() {
+        manager = NetworkInfoManager()
+        manager.enableTestMode()
         
-        // Create a subclass for testing with mocked data
-        class TestableNetworkInfoManager: NetworkInfoManager {
-            var mockGeoIPData: GeoIPData?
-            
-            override init() {
-                super.init()
-                self.enableTestMode() // Enable test mode
-            }
-            
-            override func getGeoIPData() {
-                // Instead of making a real network call, use the mock data
-                if let mockData = mockGeoIPData {
-                    self.setTestGeoIPData(mockData)
-                    print("Mock GeoIP data set: \(mockData)")
-                } else {
-                    print("No mock GeoIP data available")
-                }
-            }
-        }
-        
-        let testManager = TestableNetworkInfoManager()
+        // Directly test GeoIP data functionality
         let mockData = GeoIPData(
             query: "71.105.144.84",
             isp: "UUNET",
@@ -131,18 +94,14 @@ final class NetworkOperationTests: XCTestCase {
             countryCode: "US"
         )
         
-        testManager.mockGeoIPData = mockData
-        testManager.getGeoIPData()
+        manager.setTestGeoIPData(mockData)
         
         // Verify the mock data was properly stored
-        let testData = testManager.testData
+        let testData = manager.testData
         XCTAssertNotNil(testData.geoIPData)
         XCTAssertEqual(testData.geoIPData?.query, "71.105.144.84")
         XCTAssertEqual(testData.geoIPData?.isp, "UUNET")
         XCTAssertEqual(testData.geoIPData?.country, "United States")
         XCTAssertEqual(testData.geoIPData?.countryCode, "US")
-        
-        expectation.fulfill()
-        wait(for: [expectation], timeout: 1.0)
     }
 }

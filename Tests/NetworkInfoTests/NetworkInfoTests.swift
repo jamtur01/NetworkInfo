@@ -9,8 +9,7 @@ final class NetworkInfoTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
-        manager = NetworkInfoManager()
-        manager.enableTestMode() // Enable test mode to avoid notification issues
+        // Setup will be done in each test method that needs MainActor
     }
     
     override func tearDown() {
@@ -20,7 +19,9 @@ final class NetworkInfoTests: XCTestCase {
     
     // MARK: - DNS Config Tests
     
-    func testReadDNSConfigWithValidConfig() {
+    @MainActor func testReadDNSConfigWithValidConfig() {
+        manager = NetworkInfoManager()
+        manager.enableTestMode()
         // Create a temporary config file
         let tempDir = NSTemporaryDirectory()
         let tempConfigPath = tempDir + "test_dns.conf"
@@ -70,7 +71,9 @@ final class NetworkInfoTests: XCTestCase {
         XCTAssertEqual(servers4, "")
     }
     
-    func testReadDNSConfigWithInvalidFilePath() {
+    @MainActor func testReadDNSConfigWithInvalidFilePath() {
+        manager = NetworkInfoManager()
+        manager.enableTestMode()
         let nonExistentPath = "/tmp/non_existent_config_file.conf"
         
         // Temporarily redirect the manager to use the non-existent file
@@ -89,12 +92,14 @@ final class NetworkInfoTests: XCTestCase {
     
     // MARK: - DNS Settings Tests
     
-    func testUpdateDNSSettings() {
+    @MainActor func testUpdateDNSSettings() {
+        manager = NetworkInfoManager()
+        manager.enableTestMode()
         // Create a subclass for testing to avoid actual system commands
-        class TestableNetworkInfoManager: NetworkInfoManager {
-            var commandWasCorrect = false
+        class TestableNetworkInfoManager: NetworkInfoManager, @unchecked Sendable {
+            @MainActor var commandWasCorrect = false
             
-            override func updateDNSSettings(dnsServers: String) -> Bool {
+            nonisolated override func updateDNSSettings(dnsServers: String) -> Bool {
                 // Instead of executing real commands, just validate the input
                 if dnsServers.isEmpty {
                     print("No DNS servers specified")
@@ -106,7 +111,9 @@ final class NetworkInfoTests: XCTestCase {
                 if !dnsArray.isEmpty {
                     let cmd = "/usr/sbin/networksetup -setdnsservers Wi-Fi \(dnsArray.joined(separator: " "))"
                     print("Would execute: \(cmd)")
-                    commandWasCorrect = true
+                    Task { @MainActor in
+                        commandWasCorrect = true
+                    }
                     return true
                 }
                 
@@ -121,7 +128,16 @@ final class NetworkInfoTests: XCTestCase {
         // Test with valid DNS servers
         let result1 = testManager.updateDNSSettings(dnsServers: "1.1.1.1 8.8.8.8")
         XCTAssertTrue(result1)
-        XCTAssertTrue(testManager.commandWasCorrect)
+        
+        // Wait a moment for the async Task to complete
+        let expectation = XCTestExpectation(description: "Command validation")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            Task { @MainActor in
+                XCTAssertTrue(testManager.commandWasCorrect)
+                expectation.fulfill()
+            }
+        }
+        wait(for: [expectation], timeout: 1.0)
         
         // Test with empty DNS servers (should return false)
         let result2 = testManager.updateDNSSettings(dnsServers: "")
@@ -139,7 +155,7 @@ final class NetworkInfoTests: XCTestCase {
         XCTAssertEqual(geoData.countryCode, "TC")
         
         // Test VPNConnection
-        let vpnConnection = VPNConnection(name: "Test VPN", ip: "10.0.0.1")
+        let vpnConnection = VPNConnection(interfaceName: "Test VPN", ip: "10.0.0.1")
         XCTAssertEqual(vpnConnection.name, "Test VPN")
         XCTAssertEqual(vpnConnection.ip, "10.0.0.1")
         

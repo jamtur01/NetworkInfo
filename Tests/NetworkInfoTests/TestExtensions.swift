@@ -3,88 +3,71 @@ import Foundation
 
 // Test extensions to expose private properties for testing
 extension NetworkInfoManager {
-    // Properties for testing access
-    var testDNSConfigPath: String {
-        return self.value(forKey: "dnsConfigPath") as! String
+    // Properties for testing access - direct access since KVC is disabled in Swift 6.0
+    @MainActor var testDNSConfigPath: String {
+        return dnsConfigPath
     }
     
-    var testData: NetworkData {
-        return self.value(forKey: "data") as! NetworkData
+    @MainActor var testData: NetworkData {
+        return data
     }
     
-    func setTestData(_ newData: NetworkData) {
-        self.setValue(newData, forKey: "data")
+    @MainActor func setTestData(_ newData: NetworkData) {
+        data = newData
     }
     
-    var testServiceStates: [String: ServiceState] {
-        return self.value(forKey: "serviceStates") as! [String: ServiceState]
+    @MainActor var testServiceStates: [String: ServiceState] {
+        return serviceStates
     }
     
-    func setTestServiceState(for service: String, state: ServiceState) {
-        var states = self.testServiceStates
-        states[service] = state
-        self.setValue(states, forKey: "serviceStates")
+    @MainActor func setTestServiceState(for service: String, state: ServiceState) {
+        serviceStates[service] = state
     }
     
-    func setTestDNSConfigPath(_ path: String) {
-        // Using setValue because dnsConfigPath is a let constant
-        self.setValue(path, forKey: "dnsConfigPath")
+    @MainActor func setTestDNSConfigPath(_ path: String) {
+        dnsConfigPath = path
     }
     
     // Helper methods to set specific data properties for testing
-    func setTestLocalIP(_ ip: String) {
-        let data = self.testData
+    @MainActor func setTestLocalIP(_ ip: String) {
         data.localIP = ip
-        self.setValue(data, forKey: "data")
     }
     
-    func setTestSSID(_ ssid: String) {
-        let data = self.testData
+    @MainActor func setTestSSID(_ ssid: String) {
         data.ssid = ssid
-        self.setValue(data, forKey: "data")
     }
     
-    func setTestGeoIPData(_ geoIPData: GeoIPData) {
-        let data = self.testData
+    @MainActor func setTestGeoIPData(_ geoIPData: GeoIPData) {
         data.geoIPData = geoIPData
-        self.setValue(data, forKey: "data")
     }
     
-    func setTestDNSInfo(_ dnsInfo: [String]) {
-        let data = self.testData
+    @MainActor func setTestDNSInfo(_ dnsInfo: [String]) {
         data.dnsInfo = dnsInfo
-        self.setValue(data, forKey: "data")
     }
     
-    func setTestDNSTest(_ dnsTest: DNSTest) {
-        let data = self.testData
+    @MainActor func setTestDNSTest(_ dnsTest: DNSTest) {
         data.dnsTest = dnsTest
-        self.setValue(data, forKey: "data")
     }
     
-    func setTestVPNConnections(_ vpnConnections: [VPNConnection]) {
-        let data = self.testData
+    @MainActor func setTestVPNConnections(_ vpnConnections: [VPNConnection]) {
         data.vpnConnections = vpnConnections
-        self.setValue(data, forKey: "data")
     }
     
-    func setTestDNSConfiguration(_ dnsConfiguration: DNSConfig) {
-        let data = self.testData
+    @MainActor func setTestDNSConfiguration(_ dnsConfiguration: DNSConfig) {
         data.dnsConfiguration = dnsConfiguration
-        self.setValue(data, forKey: "data")
     }
     
     // Helper methods to get specific data properties for testing
-    func getTestGeoIPData() -> GeoIPData? {
-        return self.testData.geoIPData
+    @MainActor func getTestGeoIPData() -> GeoIPData? {
+        return data.geoIPData
     }
     
-    func getTestDNSConfiguration() -> DNSConfig? {
-        return self.testData.dnsConfiguration
+    @MainActor func getTestDNSConfiguration() -> DNSConfig? {
+        return data.dnsConfiguration
     }
     
     // Enable test mode
-    func enableTestMode() {
-        self.isTestMode = true
+    @MainActor func enableTestMode() {
+        isTestMode = true
     }
 }

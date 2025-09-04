@@ -7,8 +7,7 @@ final class MenuBuildingTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
-        manager = NetworkInfoManager()
-        manager.enableTestMode() // Enable test mode to avoid notification issues
+        // Setup will be done in each test method that needs MainActor
     }
     
     override func tearDown() {
@@ -16,7 +15,9 @@ final class MenuBuildingTests: XCTestCase {
         super.tearDown()
     }
     
-    func testBuildMenuWithCompleteData() {
+    @MainActor func testBuildMenuWithCompleteData() {
+        manager = NetworkInfoManager()
+        manager.enableTestMode()
         // Set up test data
         let geoIPData = GeoIPData(query: "71.105.144.84", isp: "UUNET", country: "United States", countryCode: "US")
         let dnsInfo = ["127.0.0.1", "192.168.1.1"]
@@ -28,20 +29,18 @@ final class MenuBuildingTests: XCTestCase {
         let vpnConnections = [VPNConnection(interfaceName: "utun4", ip: "10.6.0.2")]
         let dnsConfig = DNSConfig(ssid: "Francis", servers: "127.0.0.1 192.168.1.1", configured: true)
         
-        // Populate the manager's data
-        manager.setValue("192.168.1.244", forKey: "localIP")
-        manager.setValue("Francis", forKey: "ssid")
-        manager.setValue(geoIPData, forKey: "geoIPData")
-        manager.setValue(dnsInfo, forKey: "dnsInfo")
-        manager.setValue(dnsTest, forKey: "dnsTest")
-        manager.setValue(vpnConnections, forKey: "vpnConnections")
-        manager.setValue(dnsConfig, forKey: "dnsConfiguration")
+        // Populate the manager's data using direct property access
+        manager.setTestLocalIP("192.168.1.244")
+        manager.setTestSSID("Francis")
+        manager.setTestGeoIPData(geoIPData)
+        manager.setTestDNSInfo(dnsInfo)
+        manager.setTestDNSTest(dnsTest)
+        manager.setTestVPNConnections(vpnConnections)
+        manager.setTestDNSConfiguration(dnsConfig)
         
         // Set service states
-        var states = manager.value(forKey: "serviceStates") as! [String: ServiceState]
-        states["kresd"] = ServiceState(pid: 42028, running: true, responding: true)
-        states["unbound"] = ServiceState(pid: 17725, running: true, responding: true)
-        manager.setValue(states, forKey: "serviceStates")
+        manager.setTestServiceState(for: "kresd", state: ServiceState(pid: 42028, running: true, responding: true))
+        manager.setTestServiceState(for: "unbound", state: ServiceState(pid: 17725, running: true, responding: true))
         
         // Build the menu
         let menu = NSMenu()
@@ -72,7 +71,9 @@ final class MenuBuildingTests: XCTestCase {
         XCTAssertEqual(locationItem?.title, "Location: United States (US)")
     }
     
-    func testBuildMenuWithMinimalData() {
+    @MainActor func testBuildMenuWithMinimalData() {
+        manager = NetworkInfoManager()
+        manager.enableTestMode()
         // Build menu with minimal or no data
         let menu = NSMenu()
         manager.buildMenu(menu: menu)
@@ -90,7 +91,9 @@ final class MenuBuildingTests: XCTestCase {
         XCTAssertTrue(ssidItem?.title.contains("Not connected") ?? false)
     }
     
-    func testQuitAndRefreshButtons() {
+    @MainActor func testQuitAndRefreshButtons() {
+        manager = NetworkInfoManager()
+        manager.enableTestMode()
         // Build menu
         let menu = NSMenu()
         manager.buildMenu(menu: menu)
