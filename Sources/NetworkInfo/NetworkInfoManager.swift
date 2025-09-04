@@ -2,9 +2,10 @@ import Foundation
 import Network
 import AppKit
 import UserNotifications
+import CoreLocation
 
 // MARK: - NetworkInfoManager Core
-@objcMembers class NetworkInfoManager: NSObject {
+@objcMembers @MainActor class NetworkInfoManager: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
     // MARK: - Constants
     internal let REFRESH_INTERVAL: TimeInterval = 120 // seconds
     internal let SERVICE_CHECK_INTERVAL: TimeInterval = 60 // seconds
@@ -13,7 +14,7 @@ import UserNotifications
     
     // MARK: - File paths
     // Change from let to var to allow setting for tests
-    internal var dnsConfigPath: String
+    nonisolated(unsafe) internal var dnsConfigPath: String
     
     // MARK: - State variables
     internal var serviceStates: [String: ServiceState] = [
@@ -34,11 +35,14 @@ import UserNotifications
     internal var networkMonitor: NWPathMonitor?
     
     // MARK: - Dispatch queues
-    internal var networkMonitorQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.networkMonitor")
-    internal var backgroundQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.background", qos: .utility, attributes: .concurrent)
+    nonisolated let networkMonitorQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.networkMonitor")
+    nonisolated let backgroundQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.background", qos: .utility, attributes: .concurrent)
+    
+    // MARK: - Location manager for WiFi access
+    internal var locationManager: CLLocationManager?
     
     // For tests
-    internal var isTestMode = false
+    nonisolated(unsafe) internal var isTestMode = false
     
     // MARK: - Initialization
     override init() {
@@ -95,6 +99,9 @@ import UserNotifications
     
     // MARK: - Public API
     func start() {
+        // Set up location manager for WiFi SSID access
+        setupLocationManager()
+        
         // Run an immediate refresh to populate data
         refreshData()
         
@@ -104,7 +111,9 @@ import UserNotifications
         
         // Set up periodic refresh
         refreshTimer = Timer.scheduledTimer(withTimeInterval: REFRESH_INTERVAL, repeats: true) { [weak self] _ in
-            self?.refreshData()
+            Task { @MainActor in
+                self?.refreshData()
+            }
         }
         
         // Set up service monitoring
@@ -199,20 +208,52 @@ import UserNotifications
     func sendNotification(title: String, body: String) {
         print("📣 \(title): \(body)")
         
-        // Skip UserNotifications in test mode
-        if isTestMode {
-            return
-        }
+        // Skip UserNotifications in SPM builds to avoid bundle issues
+        // TODO: Fix UserNotifications for proper bundle configuration
+        print("Notification disabled for SPM build: \(title) - \(body)")
+    }
+    
+    // MARK: - Location Services Setup
+    private func setupLocationManager() {
+        locationManager = CLLocationManager()
+        locationManager?.delegate = self
         
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
-        
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("Error sending notification: \(error)")
+        // Request location permission for WiFi SSID access
+        if CLLocationManager.locationServicesEnabled() {
+            switch locationManager?.authorizationStatus {
+            case .notDetermined:
+                print("Requesting location permission for WiFi SSID access...")
+                locationManager?.requestAlwaysAuthorization()
+            case .denied, .restricted:
+                print("Location services denied/restricted - SSID will show as restricted")
+            case .authorizedAlways, .authorizedWhenInUse:
+                print("Location services authorized - SSID detection should work")
+            case .none:
+                print("No location manager available")
+            @unknown default:
+                print("Unknown location authorization status")
             }
+        } else {
+            print("Location services disabled - SSID will show as restricted")
+        }
+    }
+    
+    // MARK: - CLLocationManagerDelegate
+    nonisolated func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        switch status {
+        case .authorizedAlways, .authorizedWhenInUse:
+            print("Location permission granted - refreshing data for SSID detection")
+            // Trigger a refresh to get SSID now that we have permission
+            Task { @MainActor in
+                try await Task.sleep(for: .seconds(1))
+                self.refreshData()
+            }
+        case .denied, .restricted:
+            print("Location permission denied - SSID will show as restricted")
+        case .notDetermined:
+            print("Location permission not determined")
+        @unknown default:
+            print("Unknown location authorization status: \(status.rawValue)")
         }
     }
     

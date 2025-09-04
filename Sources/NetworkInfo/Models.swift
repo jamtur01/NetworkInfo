@@ -1,6 +1,6 @@
 import Foundation
 
-@objc class ServiceState: NSObject {
+@objc class ServiceState: NSObject, @unchecked Sendable {
     // Use NSNumber for Objective-C compatibility with optionals
     @objc var pid: NSNumber? = nil
     @objc var running: Bool = false
@@ -34,7 +34,7 @@ import Foundation
     }
 }
 
-@objc class VPNConnection: NSObject {
+@objc class VPNConnection: NSObject, @unchecked Sendable {
     @objc var name: String
     @objc var ip: String
     
@@ -45,7 +45,7 @@ import Foundation
     }
 }
 
-@objc class DNSTestResult: NSObject {
+@objc class DNSTestResult: NSObject, @unchecked Sendable {
     @objc var success: Bool
     @objc var response: String
     
@@ -56,7 +56,7 @@ import Foundation
     }
 }
 
-@objc class DNSTest: NSObject {
+@objc class DNSTest: NSObject, @unchecked Sendable {
     @objc var working: Bool
     @objc var successRate: Double
     // Dictionary is not directly compatible with Objective-C
@@ -71,7 +71,7 @@ import Foundation
     }
 }
 
-@objc class GeoIPData: NSObject {
+@objc class GeoIPData: NSObject, @unchecked Sendable {
     @objc var query: String = "N/A"
     @objc var isp: String = "N/A"
     @objc var country: String = "N/A"
@@ -90,7 +90,7 @@ import Foundation
     }
 }
 
-@objc class DNSConfig: NSObject {
+@objc class DNSConfig: NSObject, @unchecked Sendable {
     @objc var ssid: String?
     @objc var servers: String?
     @objc var configured: Bool = false
@@ -107,7 +107,7 @@ import Foundation
     }
 }
 
-@objc class NetworkData: NSObject {
+@objc class NetworkData: NSObject, @unchecked Sendable {
     @objc var geoIPData: GeoIPData?
     @objc var dnsInfo: [String]?
     @objc var dnsTest: DNSTest?

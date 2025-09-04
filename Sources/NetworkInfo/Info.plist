@@ -21,7 +21,7 @@
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
-    <string>10.15</string>
+    <string>15.0</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2025 James Turnbull. All rights reserved.</string>
     <key>NSPrincipalClass</key>
@@ -34,6 +34,10 @@
     <string>AppIcon</string>
     <key>XCTAssetsCatalogCompilerProvisioningFileLocation</key>
     <string></string>
+    <key>NSLocationUsageDescription</key>
+    <string>NetworkInfo needs access to location services to display the Wi-Fi network name (SSID). This information is used locally and never sent to external services.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>NetworkInfo needs access to location services to display the Wi-Fi network name (SSID). This information is used locally and never sent to external services.</string>
 </dict>
 </plist>
 

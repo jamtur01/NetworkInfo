@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - DNS Configuration and Testing Extension
 extension NetworkInfoManager {
-    func getDNSInfo() {
+    nonisolated func getDNSInfo() {
         backgroundQueue.async { [weak self] in
             guard let self = self else { return }
             
@@ -41,7 +41,7 @@ extension NetworkInfoManager {
         }
     }
     
-    func testDNSResolution() {
+    nonisolated func testDNSResolution() {
         backgroundQueue.async { [weak self] in
             guard let self = self else { return }
             
@@ -81,19 +81,23 @@ extension NetworkInfoManager {
             group.notify(queue: .main) { [weak self] in
                 guard let self = self else { return }
                 
-                let successes = results.values.filter { $0.success }.count
-                self.data.dnsTest = DNSTest(
-                    working: successes > 0,
-                    successRate: Double(successes) / Double(self.TEST_DOMAINS.count) * 100.0,
-                    details: results
-                )
-                
-                print("DNS Resolution Test: \(successes)/\(self.TEST_DOMAINS.count) success (\(self.data.dnsTest!.successRate)%)")
+                // Capture results in local scope
+                let capturedResults = results
+                Task { @MainActor in
+                    let successes = capturedResults.values.filter { $0.success }.count
+                    self.data.dnsTest = DNSTest(
+                        working: successes > 0,
+                        successRate: Double(successes) / Double(self.TEST_DOMAINS.count) * 100.0,
+                        details: capturedResults
+                    )
+                    
+                    print("DNS Resolution Test: \(successes)/\(self.TEST_DOMAINS.count) success (\(self.data.dnsTest!.successRate)%)")
+                }
             }
         }
     }
     
-    func readDNSConfig(ssid: String) -> (String?, Bool) {
+    nonisolated func readDNSConfig(ssid: String) -> (String?, Bool) {
         guard !ssid.isEmpty else { return (nil, false) }
         
         do {
@@ -124,7 +128,7 @@ extension NetworkInfoManager {
         return (nil, false)
     }
     
-    func updateDNSSettings(dnsServers: String) -> Bool {
+    nonisolated func updateDNSSettings(dnsServers: String) -> Bool {
         // Validate that we have DNS servers
         guard !dnsServers.isEmpty else { 
             print("No DNS servers specified")

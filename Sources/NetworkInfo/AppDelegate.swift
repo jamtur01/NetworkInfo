@@ -2,19 +2,15 @@ import AppKit
 import SwiftUI
 import UserNotifications
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+@MainActor class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var networkInfoManager = NetworkInfoManager()
     var currentMenu: NSMenu?
     var isMenuVisible = false
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Request notification permissions
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
-            if let error = error {
-                print("Error requesting notification permissions: \(error)")
-            }
-        }
+        // Skip notification setup for SPM builds to avoid bundle issues
+        print("NetworkInfo starting...")
         
         // Create the status item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -45,7 +41,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         networkInfoManager.start()
     }
     
-    @objc func showMenu(_ sender: AnyObject?) {
+    @MainActor @objc func showMenu(_ sender: AnyObject?) {
         let menu = NSMenu()
         menu.delegate = self
         networkInfoManager.buildMenu(menu: menu)
@@ -61,7 +57,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    @objc func refreshData(_ sender: NSMenuItem) {
+    @MainActor @objc func refreshData(_ sender: NSMenuItem) {
         // Show refresh indicator in menu
         sender.title = "Refreshing..."
         sender.isEnabled = false
@@ -69,7 +65,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         networkInfoManager.refreshData()
     }
     
-    @objc func networkDataUpdated() {
+    @MainActor @objc func networkDataUpdated() {
         // If menu is currently visible, update it
         if isMenuVisible {
             statusItem?.menu = nil
@@ -77,7 +73,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    @objc func quitApp(_ sender: NSMenuItem) {
+    @MainActor @objc func quitApp(_ sender: NSMenuItem) {
         NSApplication.shared.terminate(nil)
     }
     

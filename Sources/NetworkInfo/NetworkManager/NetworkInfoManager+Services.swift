@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Service Monitoring Extension
 extension NetworkInfoManager {
-    func monitorServices() {
+    nonisolated func monitorServices() {
         let services = [
             "unbound": "org.cronokirby.unbound",
             "kresd": "org.knot-resolver.kresd"
@@ -13,7 +13,7 @@ extension NetworkInfoManager {
         }
     }
     
-    func getServiceInfo(service: String, label: String) {
+    nonisolated func getServiceInfo(service: String, label: String) {
         backgroundQueue.async { [weak self] in
             guard let self = self else { return }
             
@@ -61,23 +61,22 @@ extension NetworkInfoManager {
         }
     }
     
-    func checkServiceResponse(service: String) {
-        backgroundQueue.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Get service information from state
+    nonisolated func checkServiceResponse(service: String) {
+        Task { @MainActor in
             guard let isRunning = self.serviceStates[service]?.running,
                   isRunning else {
                 // If service is not running, it can't be responding
-                DispatchQueue.main.async {
-                    self.serviceStates[service]?.responding = false
-                }
+                self.serviceStates[service]?.responding = false
                 return
             }
             
-            // Different services listen on different ports
-            // unbound typically uses port 53
-            // kresd typically uses port 53053 or sometimes 5353
+            // Continue with the port checking logic on the background queue
+            Task.detached { [weak self] in
+                guard let self = self else { return }
+                
+                // Different services listen on different ports
+                // unbound typically uses port 53
+                // kresd typically uses port 53053 or sometimes 5353
             let server = "127.0.0.1"
             let port: String
             
@@ -113,27 +112,26 @@ extension NetworkInfoManager {
                 print("Output: \(output)")
             }
             
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                
-                let prevState = self.serviceStates[service]?.responding ?? false
-                self.serviceStates[service]?.responding = responding
-                
-                // Send notification for state changes
-                if prevState != responding {
-                    let pidValue = self.serviceStates[service]?.pid?.intValue
-                    let pid = pidValue != nil ? String(pidValue!) : "N/A"
+                await MainActor.run {
+                    let prevState = self.serviceStates[service]?.responding ?? false
+                    self.serviceStates[service]?.responding = responding
                     
-                    let status = "\(service): Running (PID: \(pid)) - \(responding ? "Responding" : "Not Responding")"
-                    
-                    self.sendNotification(
-                        title: "DNS Service Status Change",
-                        body: status
-                    )
+                    // Send notification for state changes
+                    if prevState != responding {
+                        let pidValue = self.serviceStates[service]?.pid?.intValue
+                        let pid = pidValue != nil ? String(pidValue!) : "N/A"
+                        
+                        let status = "\(service): Running (PID: \(pid)) - \(responding ? "Responding" : "Not Responding")"
+                        
+                        self.sendNotification(
+                            title: "DNS Service Status Change",
+                            body: status
+                        )
+                    }
                 }
+                
+                task.waitUntilExit()
             }
-            
-            task.waitUntilExit()
         }
     }
 }
