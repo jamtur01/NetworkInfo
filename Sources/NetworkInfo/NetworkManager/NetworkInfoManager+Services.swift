@@ -14,26 +14,13 @@ extension NetworkInfoManager {
     }
     
     nonisolated func getServiceInfo(service: String, label: String) {
-        backgroundQueue.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Exactly match the process from the Lua code
-            let task = Process()
-            task.launchPath = "/bin/launchctl"
-            task.arguments = ["print", "system/\(label)"]
-            
-            let pipe = Pipe()
-            task.standardOutput = pipe
-            
-            task.launch()
-            
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-            
-            // Process output on main thread to update UI
-            DispatchQueue.main.async {
+        Task {
+            do {
+                let output = try await ProcessService.execute(command: "/bin/launchctl", arguments: ["print", "system/\(label)"])
+                
+                await MainActor.run {
                 if output.contains("could not find service") {
-                    print("\(service): Service not found")
+                    Logger.info("\(service): Service not found", category: "Service")
                     self.serviceStates[service]?.running = false
                     self.serviceStates[service]?.pid = nil // Using nil directly for NSNumber
                 } else {
@@ -46,18 +33,23 @@ extension NetworkInfoManager {
                        let pidValueRange = output[pidRange].range(of: "[0-9]+", options: .regularExpression),
                        let pid = Int(output[pidValueRange]) {
                         self.serviceStates[service]?.pid = NSNumber(value: pid) // Using NSNumber instead of Int
-                        print("\(service): Running with PID \(pid)")
+                        Logger.info("\(service): Running with PID \(pid)", category: "Service")
                     } else {
                         self.serviceStates[service]?.pid = nil
-                        print("\(service): \(isRunning ? "Running" : "Not running"), but no PID found")
+                        Logger.info("\(service): \(isRunning ? "Running" : "Not running"), but no PID found", category: "Service")
                     }
                 }
                 
                 // Now check if the service is responding by sending a DNS query
                 self.checkServiceResponse(service: service)
+                }
+            } catch {
+                Logger.error("Failed to get service info for \(service): \(error.localizedDescription)", category: "Service")
+                await MainActor.run {
+                    self.serviceStates[service]?.running = false
+                    self.serviceStates[service]?.pid = nil
+                }
             }
-            
-            task.waitUntilExit()
         }
     }
     
@@ -70,67 +62,53 @@ extension NetworkInfoManager {
                 return
             }
             
-            // Continue with the port checking logic on the background queue
+            // Continue with the port checking logic
             Task.detached { [weak self] in
                 guard let self = self else { return }
                 
-                // Different services listen on different ports
-                // unbound typically uses port 53
-                // kresd typically uses port 53053 or sometimes 5353
-            let server = "127.0.0.1"
-            let port: String
+                // Get service port configuration
+                let port = NetworkInfoConfiguration.servicePorts[service] ?? "53"
+                let server = "127.0.0.1"
+                
+                do {
+                    let output = try await ProcessService.execute(
+                        command: "/usr/bin/dig",
+                        arguments: ["@\(server)", "-p", port, "example.com", "+short", "+time=2"],
+                        timeout: 3.0
+                    )
             
-            switch service {
-            case "unbound":
-                port = "53"
-            case "kresd":
-                // kresd is configured to listen on port 8053 according to kresd.conf
-                port = "8053"
-            default:
-                port = "53"
-            }
-            
-            let task = Process()
-            task.launchPath = "/usr/bin/dig"
-            task.arguments = ["@\(server)", "-p", port, "example.com", "+short", "+time=2"]
-            
-            let pipe = Pipe()
-            task.standardOutput = pipe
-            task.standardError = Pipe() // Capture stderr to prevent console error messages
-            
-            task.launch()
-            
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-            
-            // Use the same IP address pattern detection as the Lua code
-            let ipAddressPattern = "\\d+\\.\\d+\\.\\d+\\.\\d+"
-            let responding = (output.range(of: ipAddressPattern, options: .regularExpression) != nil)
-            
-            print("\(service) DNS test on port \(port): \(responding ? "Responding" : "Not responding")")
-            if !output.isEmpty {
-                print("Output: \(output)")
-            }
-            
-                await MainActor.run {
-                    let prevState = self.serviceStates[service]?.responding ?? false
-                    self.serviceStates[service]?.responding = responding
+                    // Use the same IP address pattern detection as the Lua code
+                    let ipAddressPattern = "\\d+\\.\\d+\\.\\d+\\.\\d+"
+                    let responding = (output.range(of: ipAddressPattern, options: .regularExpression) != nil)
                     
-                    // Send notification for state changes
-                    if prevState != responding {
-                        let pidValue = self.serviceStates[service]?.pid?.intValue
-                        let pid = pidValue != nil ? String(pidValue!) : "N/A"
+                    Logger.info("\(service) DNS test on port \(port): \(responding ? "Responding" : "Not responding")", category: "Service")
+                    if !output.isEmpty {
+                        Logger.debug("DNS test output: \(output)", category: "Service")
+                    }
+                    
+                    await MainActor.run {
+                        let prevState = self.serviceStates[service]?.responding ?? false
+                        self.serviceStates[service]?.responding = responding
                         
-                        let status = "\(service): Running (PID: \(pid)) - \(responding ? "Responding" : "Not Responding")"
-                        
-                        self.sendNotification(
-                            title: "DNS Service Status Change",
-                            body: status
-                        )
+                        // Send notification for state changes
+                        if prevState != responding {
+                            let pidValue = self.serviceStates[service]?.pid?.intValue
+                            let pid = pidValue != nil ? String(pidValue!) : "N/A"
+                            
+                            let status = "\(service): Running (PID: \(pid)) - \(responding ? "Responding" : "Not Responding")"
+                            
+                            self.logNotification(
+                                title: "DNS Service Status Change",
+                                body: status
+                            )
+                        }
+                    }
+                } catch {
+                    Logger.error("Service response check failed for \(service): \(error.localizedDescription)", category: "Service")
+                    await MainActor.run {
+                        self.serviceStates[service]?.responding = false
                     }
                 }
-                
-                task.waitUntilExit()
             }
         }
     }

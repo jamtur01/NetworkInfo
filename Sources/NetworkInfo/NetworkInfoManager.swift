@@ -1,16 +1,19 @@
 import Foundation
 import Network
 import AppKit
-import UserNotifications
 import CoreLocation
 
 // MARK: - NetworkInfoManager Core
 @objcMembers @MainActor class NetworkInfoManager: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
     // MARK: - Constants
-    internal let REFRESH_INTERVAL: TimeInterval = 120 // seconds
-    internal let SERVICE_CHECK_INTERVAL: TimeInterval = 60 // seconds
-    internal let EXPECTED_DNS = "127.0.0.1"
-    internal let TEST_DOMAINS = ["example.com", "google.com", "cloudflare.com"]
+    internal let SERVICE_CHECK_INTERVAL = NetworkInfoConfiguration.serviceCheckInterval
+    internal let EXPECTED_DNS = NetworkInfoConfiguration.expectedDNS
+    internal let TEST_DOMAINS = NetworkInfoConfiguration.testDomains
+    
+    // MARK: - Adaptive Refresh
+    private var currentRefreshInterval = NetworkInfoConfiguration.baseRefreshInterval
+    private var networkStabilityScore = 0.0 // 0.0 = unstable, 1.0 = very stable
+    private var lastNetworkPath: NWPath?
     
     // MARK: - File paths
     // Change from let to var to allow setting for tests
@@ -34,12 +37,19 @@ import CoreLocation
     internal var configWatcher: DispatchSourceFileSystemObject?
     internal var networkMonitor: NWPathMonitor?
     
-    // MARK: - Dispatch queues
+    // MARK: - Dispatch queues  
     nonisolated let networkMonitorQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.networkMonitor")
-    nonisolated let backgroundQueue = DispatchQueue(label: "com.jamtur01.NetworkInfo.background", qos: .utility, attributes: .concurrent)
     
     // MARK: - Location manager for WiFi access
     internal var locationManager: CLLocationManager?
+    
+    // MARK: - AsyncStream for data updates
+    private var dataUpdateContinuation: AsyncStream<NetworkData>.Continuation?
+    private lazy var dataUpdateStream: AsyncStream<NetworkData> = {
+        AsyncStream { continuation in
+            self.dataUpdateContinuation = continuation
+        }
+    }()
     
     // For tests
     nonisolated(unsafe) internal var isTestMode = false
@@ -48,50 +58,29 @@ import CoreLocation
     override init() {
         // Standard macOS app configuration location: Application Support directory
         let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appDirectory = applicationSupport.appendingPathComponent("NetworkInfo")
+        let appDirectory = applicationSupport.appendingPathComponent(NetworkInfoConfiguration.appName)
         
         // Create the directory if it doesn't exist
         try? FileManager.default.createDirectory(at: appDirectory, withIntermediateDirectories: true, attributes: nil)
         
-        dnsConfigPath = appDirectory.appendingPathComponent("dns.conf").path
+        dnsConfigPath = appDirectory.appendingPathComponent(NetworkInfoConfiguration.dnsConfigFilename).path
         
         // For backward compatibility, check if a config exists in the legacy location
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        let legacyPath = homeDir.appendingPathComponent(".config/hammerspoon/dns.conf").path
+        let legacyPath = homeDir.appendingPathComponent(NetworkInfoConfiguration.legacyDNSConfigPath).path
         
         // If the file exists in legacy location but not in the new location, copy it
         if FileManager.default.fileExists(atPath: legacyPath) && !FileManager.default.fileExists(atPath: dnsConfigPath) {
             try? FileManager.default.copyItem(atPath: legacyPath, toPath: dnsConfigPath)
-            print("Migrated DNS config from \(legacyPath) to \(dnsConfigPath)")
+            Logger.info("Migrated DNS config from \(legacyPath) to \(dnsConfigPath)", category: "Config")
         }
         
         // Create a default config file with examples if it doesn't exist
         if !FileManager.default.fileExists(atPath: dnsConfigPath) {
-            let exampleConfig = """
-            # NetworkInfo DNS Configuration
-            # 
-            # This file configures custom DNS servers for different Wi-Fi networks.
-            # Format: SSID = DNS_Server1 DNS_Server2 ...
-            #
-            # Examples:
-            # 
-            # Home = 1.1.1.1 8.8.8.8
-            # Work = 192.168.1.1 192.168.1.2
-            # 
-            # Use Cloudflare for home networks:
-            # HomeWifi = 1.1.1.1 1.0.0.1
-            # 
-            # Use Google DNS for coffee shops:
-            # CoffeeShopWifi = 8.8.8.8 8.8.4.4
-            # 
-            # For empty DNS configuration (use network defaults):
-            # GuestNetwork = 
-            
-            """
-            try? exampleConfig.write(toFile: dnsConfigPath, atomically: true, encoding: .utf8)
-            print("Created new DNS config with examples at: \(dnsConfigPath)")
+            try? NetworkInfoConfiguration.exampleDNSConfig.write(toFile: dnsConfigPath, atomically: true, encoding: .utf8)
+            Logger.info("Created new DNS config with examples at: \(dnsConfigPath)", category: "Config")
         } else {
-            print("Using existing DNS config at: \(dnsConfigPath)")
+            Logger.debug("Using existing DNS config at: \(dnsConfigPath)", category: "Config")
         }
         
         super.init()
@@ -109,12 +98,8 @@ import CoreLocation
         monitorServices()
         testDNSResolution()
         
-        // Set up periodic refresh
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: REFRESH_INTERVAL, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.refreshData()
-            }
-        }
+        // Set up adaptive refresh timer
+        startAdaptiveRefresh()
         
         // Set up service monitoring
         serviceTimer = Timer.scheduledTimer(withTimeInterval: SERVICE_CHECK_INTERVAL, repeats: true) { [weak self] _ in
@@ -143,6 +128,12 @@ import CoreLocation
     }
     
     func refreshData() {
+        Task {
+            await refreshDataAsync()
+        }
+    }
+    
+    private func refreshDataAsync() async {
         // Preserve DNS configuration
         let dnsConfiguration = data.dnsConfiguration
         
@@ -150,67 +141,32 @@ import CoreLocation
         data = NetworkData()
         data.dnsConfiguration = dnsConfiguration
         
-        // Use a dispatch group for better coordination
-        let refreshGroup = DispatchGroup()
-        
-        // Fetch all data asynchronously with dispatch group
-        refreshGroup.enter()
-        backgroundQueue.async { [weak self] in
-            self?.getGeoIPData()
-            refreshGroup.leave()
+        // Fetch all data concurrently using TaskGroup
+        await withTaskGroup(of: Void.self) { [self] group in
+            group.addTask { self.getGeoIPData() }
+            group.addTask { self.getLocalIPAddress() }
+            group.addTask { self.getCurrentSSID() }
+            group.addTask { self.getVPNConnections() }
+            group.addTask { self.getDNSInfo() }
+            group.addTask { self.testDNSResolution() }
+            group.addTask { self.monitorServices() }
         }
         
-        refreshGroup.enter()
-        backgroundQueue.async { [weak self] in
-            self?.getLocalIPAddress()
-            refreshGroup.leave()
-        }
+        Logger.debug("All network data refreshed", category: "Network")
         
-        refreshGroup.enter()
-        backgroundQueue.async { [weak self] in
-            self?.getCurrentSSID()
-            refreshGroup.leave()
-        }
+        // Emit data update through AsyncStream
+        dataUpdateContinuation?.yield(data)
         
-        refreshGroup.enter()
-        backgroundQueue.async { [weak self] in
-            self?.getVPNConnections()
-            refreshGroup.leave()
-        }
-        
-        refreshGroup.enter()
-        backgroundQueue.async { [weak self] in
-            self?.getDNSInfo()
-            refreshGroup.leave()
-        }
-        
-        refreshGroup.enter()
-        backgroundQueue.async { [weak self] in
-            self?.testDNSResolution()
-            refreshGroup.leave()
-        }
-        
-        refreshGroup.enter()
-        backgroundQueue.async { [weak self] in
-            self?.monitorServices()
-            refreshGroup.leave()
-        }
-        
-        // Notify when all tasks complete (optional)
-        refreshGroup.notify(queue: .main) {
-            print("All network data refreshed")
-            // Post a notification that data has been updated
-            NotificationCenter.default.post(name: NSNotification.Name("NetworkDataUpdated"), object: nil)
-        }
+        // Post a notification that data has been updated (for legacy compatibility)
+        NotificationCenter.default.post(name: NSNotification.Name("NetworkDataUpdated"), object: nil)
     }
     
+    // MARK: - Async Data Fetching Wrappers
+    
+    
     // MARK: - Helper Methods
-    func sendNotification(title: String, body: String) {
-        print("📣 \(title): \(body)")
-        
-        // Skip UserNotifications in SPM builds to avoid bundle issues
-        // TODO: Fix UserNotifications for proper bundle configuration
-        print("Notification disabled for SPM build: \(title) - \(body)")
+    func logNotification(title: String, body: String) {
+        Logger.notification("\(title): \(body)", category: "Notification")
     }
     
     // MARK: - Location Services Setup
@@ -222,19 +178,19 @@ import CoreLocation
         if CLLocationManager.locationServicesEnabled() {
             switch locationManager?.authorizationStatus {
             case .notDetermined:
-                print("Requesting location permission for WiFi SSID access...")
+                Logger.info("Requesting location permission for WiFi SSID access", category: "Location")
                 locationManager?.requestAlwaysAuthorization()
             case .denied, .restricted:
-                print("Location services denied/restricted - SSID will show as restricted")
+                Logger.warning("Location services denied/restricted - SSID will show as restricted", category: "Location")
             case .authorizedAlways, .authorizedWhenInUse:
-                print("Location services authorized - SSID detection should work")
+                Logger.info("Location services authorized - SSID detection should work", category: "Location")
             case .none:
-                print("No location manager available")
+                Logger.error("No location manager available", category: "Location")
             @unknown default:
-                print("Unknown location authorization status")
+                Logger.warning("Unknown location authorization status", category: "Location")
             }
         } else {
-            print("Location services disabled - SSID will show as restricted")
+            Logger.warning("Location services disabled - SSID will show as restricted", category: "Location")
         }
     }
     
@@ -242,19 +198,86 @@ import CoreLocation
     nonisolated func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
         switch status {
         case .authorizedAlways, .authorizedWhenInUse:
-            print("Location permission granted - refreshing data for SSID detection")
-            // Trigger a refresh to get SSID now that we have permission
+            Logger.info("Location permission granted - refreshing data for SSID detection", category: "Location")
             Task { @MainActor in
                 try await Task.sleep(for: .seconds(1))
-                self.refreshData()
+                self.refreshData() 
             }
         case .denied, .restricted:
-            print("Location permission denied - SSID will show as restricted")
+            Logger.warning("Location permission denied - SSID will show as restricted", category: "Location")
         case .notDetermined:
-            print("Location permission not determined")
+            Logger.debug("Location permission not determined", category: "Location")
         @unknown default:
-            print("Unknown location authorization status: \(status.rawValue)")
+            Logger.warning("Unknown location authorization status: \(status.rawValue)", category: "Location")
         }
+    }
+    
+    // MARK: - Adaptive Refresh System
+    
+    private func startAdaptiveRefresh() {
+        updateRefreshTimer()
+    }
+    
+    private func updateRefreshTimer() {
+        refreshTimer?.invalidate()
+        
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: currentRefreshInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshData()
+            }
+        }
+        
+        Logger.debug("Updated refresh timer to \(currentRefreshInterval)s interval", category: "Performance")
+    }
+    
+    internal func updateNetworkStability(newPath: NWPath) {
+        defer { lastNetworkPath = newPath }
+        
+        guard let lastPath = lastNetworkPath else {
+            // First path update - assume stable initially
+            networkStabilityScore = 0.8
+            return
+        }
+        
+        // Calculate stability based on path changes
+        let pathChanged = lastPath.status != newPath.status || 
+                         lastPath.isExpensive != newPath.isExpensive ||
+                         lastPath.isConstrained != newPath.isConstrained
+        
+        if pathChanged {
+            // Network changed - decrease stability
+            networkStabilityScore = max(0.0, networkStabilityScore - 0.3)
+            Logger.info("Network path changed, stability score: \(networkStabilityScore)", category: "Performance")
+        } else {
+            // Network stable - gradually increase stability
+            networkStabilityScore = min(1.0, networkStabilityScore + 0.1)
+        }
+        
+        // Adjust refresh interval based on stability
+        let targetInterval: TimeInterval
+        if networkStabilityScore > 0.7 {
+            // Very stable - use base interval
+            targetInterval = NetworkInfoConfiguration.baseRefreshInterval
+        } else if networkStabilityScore > 0.4 {
+            // Moderately stable - use faster refresh
+            targetInterval = NetworkInfoConfiguration.fastRefreshInterval
+        } else {
+            // Unstable - use minimum interval
+            targetInterval = NetworkInfoConfiguration.minRefreshInterval
+        }
+        
+        // Only update timer if interval changed significantly (avoid thrashing)
+        if abs(currentRefreshInterval - targetInterval) > 5.0 {
+            currentRefreshInterval = targetInterval
+            updateRefreshTimer()
+        }
+    }
+    
+    // MARK: - Data Streaming Interface
+    
+    /// AsyncStream that emits NetworkData updates for reactive programming
+    var networkDataUpdates: AsyncStream<NetworkData> {
+        return dataUpdateStream
     }
     
     // MARK: - Public Menu Interface

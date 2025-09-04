@@ -7,10 +7,16 @@ extension NetworkInfoManager {
         networkMonitor = NWPathMonitor()
         
         networkMonitor?.pathUpdateHandler = { [weak self] path in
-            DispatchQueue.main.async {
-                print("Network configuration changed")
+            Task { @MainActor in
+                guard let self = self else { return }
+                
+                Logger.info("Network configuration changed", category: "Network")
+                
+                // Update network stability tracking
+                self.updateNetworkStability(newPath: path)
+                
                 // Refresh all data when network changes
-                self?.refreshData()
+                self.refreshData()
             }
         }
         
@@ -24,7 +30,7 @@ extension NetworkInfoManager {
         // Set up file watcher
         let fileDescriptor = open(dnsConfigPath, O_EVTONLY)
         if fileDescriptor < 0 {
-            print("Error watching config file")
+            Logger.error("Error watching config file", category: "Config")
             return
         }
         
@@ -35,7 +41,7 @@ extension NetworkInfoManager {
         )
         
         configWatcher?.setEventHandler { [weak self] in
-            print("dns.conf has changed. Reloading DNS configuration.")
+            Logger.info("dns.conf has changed. Reloading DNS configuration.", category: "Config")
             self?.refreshData()
         }
         

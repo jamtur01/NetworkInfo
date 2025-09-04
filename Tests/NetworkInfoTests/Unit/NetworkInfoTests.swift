@@ -92,17 +92,17 @@ final class NetworkInfoTests: XCTestCase {
     
     // MARK: - DNS Settings Tests
     
-    @MainActor func testUpdateDNSSettings() {
+    @MainActor func testUpdateDNSSettings() async {
         manager = NetworkInfoManager()
         manager.enableTestMode()
         // Create a subclass for testing to avoid actual system commands
         class TestableNetworkInfoManager: NetworkInfoManager, @unchecked Sendable {
             @MainActor var commandWasCorrect = false
             
-            nonisolated override func updateDNSSettings(dnsServers: String) -> Bool {
+            nonisolated override func updateDNSSettings(dnsServers: String) async -> Bool {
                 // Instead of executing real commands, just validate the input
                 if dnsServers.isEmpty {
-                    print("No DNS servers specified")
+                    Logger.warning("No DNS servers specified", category: "DNS")
                     return false
                 }
                 
@@ -110,7 +110,7 @@ final class NetworkInfoTests: XCTestCase {
                 let dnsArray = dnsServers.split(separator: " ").map { String($0) }
                 if !dnsArray.isEmpty {
                     let cmd = "/usr/sbin/networksetup -setdnsservers Wi-Fi \(dnsArray.joined(separator: " "))"
-                    print("Would execute: \(cmd)")
+                    Logger.info("Would execute: \(cmd)", category: "DNS")
                     Task { @MainActor in
                         commandWasCorrect = true
                     }
@@ -126,7 +126,7 @@ final class NetworkInfoTests: XCTestCase {
         testManager.enableTestMode()
         
         // Test with valid DNS servers
-        let result1 = testManager.updateDNSSettings(dnsServers: "1.1.1.1 8.8.8.8")
+        let result1 = await testManager.updateDNSSettings(dnsServers: "1.1.1.1 8.8.8.8")
         XCTAssertTrue(result1)
         
         // Wait a moment for the async Task to complete
@@ -137,10 +137,10 @@ final class NetworkInfoTests: XCTestCase {
                 expectation.fulfill()
             }
         }
-        wait(for: [expectation], timeout: 1.0)
+        await fulfillment(of: [expectation], timeout: 1.0)
         
         // Test with empty DNS servers (should return false)
-        let result2 = testManager.updateDNSSettings(dnsServers: "")
+        let result2 = await testManager.updateDNSSettings(dnsServers: "")
         XCTAssertFalse(result2)
     }
     

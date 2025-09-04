@@ -1,6 +1,4 @@
 import AppKit
-import SwiftUI
-import UserNotifications
 
 @MainActor class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
@@ -10,20 +8,14 @@ import UserNotifications
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Skip notification setup for SPM builds to avoid bundle issues
-        print("NetworkInfo starting...")
+        Logger.info("NetworkInfo starting...", category: "App")
         
         // Create the status item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
-            // Use a custom icon based on OS version
-            if #available(macOS 11.0, *) {
-                // Use SF Symbols on newer macOS
-                button.image = NSImage(systemSymbolName: "network", accessibilityDescription: "Network Info")
-            } else {
-                // Fallback to text on older macOS
-                button.title = "Net"
-            }
+            // Use SF Symbols (macOS 15+ target)
+            button.image = NSImage(systemSymbolName: "network", accessibilityDescription: "Network Info")
             button.image?.isTemplate = true
             button.target = self
             button.action = #selector(showMenu(_:))

@@ -1,11 +1,10 @@
-import SwiftUI
 import AppKit
 
-// Main application entry point
+// Main application entry point using pure AppKit pattern
 @main
-struct NetworkInfoApp {
+class NetworkInfoApp {
     static func main() {
-        // Create and configure the application
+        // Create and configure the NSApplication
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
@@ -13,7 +12,7 @@ struct NetworkInfoApp {
         // Configure as an agent app (menu bar only, no dock icon)
         app.setActivationPolicy(.accessory)
         
-        // Run the application
+        // Start the application event loop
         app.run()
     }
 }

@@ -3,22 +3,43 @@ import Foundation
 
 // MARK: - UI (Menu Building) Extension
 extension NetworkInfoManager {
-    // Helper method to create menu items with proper icon support
+    // MARK: - Menu Item Helpers
+    
+    // Helper method to create menu items with SF Symbols (macOS 15+ only)
     private func createMenuItem(title: String, 
                                representedObject: String? = nil,
                                systemSymbol: String? = nil,
-                               legacyImage: String? = nil,
                                action: Selector? = #selector(AppDelegate.copyToClipboard(_:))) -> NSMenuItem {
         let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: "")
         menuItem.representedObject = representedObject ?? title
         
-        if let systemSymbol = systemSymbol, #available(macOS 11.0, *) {
+        if let systemSymbol = systemSymbol {
             menuItem.image = NSImage(systemSymbolName: systemSymbol, accessibilityDescription: title)
-        } else if let legacyImage = legacyImage {
-            menuItem.image = NSImage(named: legacyImage)
         }
         
         return menuItem
+    }
+    
+    private func createHeaderItem(title: String, systemSymbol: String? = nil) -> NSMenuItem {
+        let headerItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        
+        if let systemSymbol = systemSymbol {
+            headerItem.image = NSImage(systemSymbolName: systemSymbol, accessibilityDescription: title)
+        }
+        
+        return headerItem
+    }
+    
+    private func createIndentedItem(title: String, level: Int = 1, representedObject: String? = nil, 
+                                   systemSymbol: String? = nil, action: Selector? = #selector(AppDelegate.copyToClipboard(_:))) -> NSMenuItem {
+        let item = createMenuItem(title: title, representedObject: representedObject, systemSymbol: systemSymbol, action: action)
+        item.indentationLevel = level
+        return item
+    }
+    
+    private func addSectionSeparator(to menu: NSMenu) {
+        menu.addItem(NSMenuItem.separator())
     }
     
     func buildMenuItems(menu: NSMenu) {
@@ -26,16 +47,14 @@ extension NetworkInfoManager {
         let publicIP = data.geoIPData?.query ?? "N/A"
         let publicIPItem = createMenuItem(title: "Public IP: \(publicIP)", 
                                          representedObject: publicIP,
-                                         systemSymbol: "globe",
-                                         legacyImage: "NSGlobeTemplate")
+                                         systemSymbol: "globe")
         menu.addItem(publicIPItem)
         
         // Local IP
         let localIP = data.localIP ?? "N/A"
         let localIPItem = createMenuItem(title: "Local IP: \(localIP)",
                                         representedObject: localIP,
-                                        systemSymbol: "desktopcomputer",
-                                        legacyImage: "NSComputer")
+                                        systemSymbol: "desktopcomputer")
         menu.addItem(localIPItem)
         
         // SSID with DNS Configuration
@@ -57,7 +76,6 @@ extension NetworkInfoManager {
         menu.addItem(NSMenuItem.separator())
         let refreshItem = createMenuItem(title: "Refresh",
                                         systemSymbol: "arrow.clockwise",
-                                        legacyImage: "NSRefreshTemplate",
                                         action: #selector(AppDelegate.refreshData(_:)))
         refreshItem.keyEquivalent = "r"
         menu.addItem(refreshItem)
@@ -75,8 +93,7 @@ extension NetworkInfoManager {
         let ssid = data.ssid ?? "Not connected"
         let ssidItem = createMenuItem(title: "SSID: \(ssid)",
                                      representedObject: ssid,
-                                     systemSymbol: "wifi",
-                                     legacyImage: "NSNetwork")
+                                     systemSymbol: "wifi")
         menu.addItem(ssidItem)
         
         if let dnsConfig = data.dnsConfiguration {
@@ -105,9 +122,7 @@ extension NetworkInfoManager {
             
             let dnsHeader = NSMenuItem(title: "Current DNS Servers:", action: nil, keyEquivalent: "")
             dnsHeader.isEnabled = false
-            if #available(macOS 11.0, *) {
-                dnsHeader.image = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "DNS Servers")
-            }
+            dnsHeader.image = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "DNS Servers")
             menu.addItem(dnsHeader)
             
             for dns in dnsInfo {
@@ -126,14 +141,7 @@ extension NetworkInfoManager {
             
             let vpnHeader = NSMenuItem(title: "VPN Connections (\(vpnConnections.count)):", action: nil, keyEquivalent: "")
             vpnHeader.isEnabled = false
-            if #available(macOS 11.0, *) {
-                vpnHeader.image = NSImage(systemSymbolName: "lock.shield", accessibilityDescription: "VPN Connections")
-            } else {
-                // Fallback icon for older systems
-                if let vpnIcon = NSImage(named: "vpn") {
-                    vpnHeader.image = vpnIcon
-                }
-            }
+            vpnHeader.image = NSImage(systemSymbolName: "lock.shield", accessibilityDescription: "VPN Connections")
             menu.addItem(vpnHeader)
             
             for vpn in vpnConnections {
@@ -165,20 +173,18 @@ extension NetworkInfoManager {
                         detailItem.indentationLevel = 2
                         
                         // Add appropriate icons for different detail types
-                        if #available(macOS 11.0, *) {
-                            switch label {
-                            case "IP Address":
-                                detailItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: "IP Address")
-                            case "Type":
-                                detailItem.image = NSImage(systemSymbolName: "gear", accessibilityDescription: "VPN Type")
-                            case "Status":
-                                let iconName = vpn.status == "Connected" ? "checkmark.circle" : "xmark.circle"
-                                detailItem.image = NSImage(systemSymbolName: iconName, accessibilityDescription: "Status")
-                            case "Interface":
-                                detailItem.image = NSImage(systemSymbolName: "cable.connector", accessibilityDescription: "Interface")
-                            default:
-                                break
-                            }
+                        switch label {
+                        case "IP Address":
+                            detailItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: "IP Address")
+                        case "Type":
+                            detailItem.image = NSImage(systemSymbolName: "gear", accessibilityDescription: "VPN Type")
+                        case "Status":
+                            let iconName = vpn.status == "Connected" ? "checkmark.circle" : "xmark.circle"
+                            detailItem.image = NSImage(systemSymbolName: iconName, accessibilityDescription: "Status")
+                        case "Interface":
+                            detailItem.image = NSImage(systemSymbolName: "cable.connector", accessibilityDescription: "Interface")
+                        default:
+                            break
                         }
                         
                         menu.addItem(detailItem)
@@ -220,9 +226,7 @@ extension NetworkInfoManager {
             menu.addItem(NSMenuItem.separator())
             let noVpnItem = NSMenuItem(title: "🔓 No VPN connections", action: nil, keyEquivalent: "")
             noVpnItem.isEnabled = false
-            if #available(macOS 11.0, *) {
-                noVpnItem.image = NSImage(systemSymbolName: "lock.open", accessibilityDescription: "No VPN")
-            }
+            noVpnItem.image = NSImage(systemSymbolName: "lock.open", accessibilityDescription: "No VPN")
             menu.addItem(noVpnItem)
         }
     }
@@ -232,11 +236,7 @@ extension NetworkInfoManager {
         
         let serviceHeader = NSMenuItem(title: "Service Status:", action: nil, keyEquivalent: "")
         serviceHeader.isEnabled = false
-        if #available(macOS 11.0, *) {
-            serviceHeader.image = NSImage(systemSymbolName: "gear", accessibilityDescription: "Service Status")
-        } else {
-            serviceHeader.image = NSImage(named: "NSAdvanced")
-        }
+        serviceHeader.image = NSImage(systemSymbolName: "gear", accessibilityDescription: "Service Status")
         menu.addItem(serviceHeader)
         
         for (service, state) in serviceStates {
@@ -283,8 +283,7 @@ extension NetworkInfoManager {
             let locationText = "\(geoIPData.country) (\(geoIPData.countryCode))"
             let locationItem = createMenuItem(title: "Location: \(locationText)",
                                             representedObject: locationText,
-                                            systemSymbol: "mappin.and.ellipse",
-                                            legacyImage: "NSLocation")
+                                            systemSymbol: "mappin.and.ellipse")
             menu.addItem(locationItem)
         }
     }
