@@ -66,29 +66,34 @@ actor ProcessService: ProcessExecutor {
             process.standardOutput = outputPipe
             process.standardError = errorPipe
             
-            // Set up timeout
-            let didCompleteBox = MutableBox(false)
+            // Set up timeout and completion tracking
+            let hasResumedBox = MutableBox(false)
             let timeoutTask = DispatchWorkItem {
-                if !didCompleteBox.value {
+                if !hasResumedBox.value {
+                    hasResumedBox.value = true
                     process.terminate()
                     continuation.resume(throwing: ProcessError.executionFailed(-1))
                 }
             }
             
             process.terminationHandler = { process in
-                didCompleteBox.value = true
                 timeoutTask.cancel()
                 
-                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                
-                if process.terminationStatus == 0 {
-                    if let output = String(data: outputData, encoding: .utf8) {
-                        continuation.resume(returning: output.trimmingCharacters(in: .whitespacesAndNewlines))
+                // Only resume if we haven't already resumed (handles race condition)
+                if !hasResumedBox.value {
+                    hasResumedBox.value = true
+                    
+                    let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                    
+                    if process.terminationStatus == 0 {
+                        if let output = String(data: outputData, encoding: .utf8) {
+                            continuation.resume(returning: output.trimmingCharacters(in: .whitespacesAndNewlines))
+                        } else {
+                            continuation.resume(throwing: ProcessError.outputEncodingFailed)
+                        }
                     } else {
-                        continuation.resume(throwing: ProcessError.outputEncodingFailed)
+                        continuation.resume(throwing: ProcessError.executionFailed(process.terminationStatus))
                     }
-                } else {
-                    continuation.resume(throwing: ProcessError.executionFailed(process.terminationStatus))
                 }
             }
             
@@ -97,7 +102,10 @@ actor ProcessService: ProcessExecutor {
                 // Schedule timeout
                 DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: timeoutTask)
             } catch {
-                continuation.resume(throwing: ProcessError.processSetupFailed)
+                if !hasResumedBox.value {
+                    hasResumedBox.value = true
+                    continuation.resume(throwing: ProcessError.processSetupFailed)
+                }
             }
         }
     }
